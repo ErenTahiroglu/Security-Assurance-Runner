@@ -2,7 +2,9 @@
 
 **OWNER-APPROVED REQUIREMENT:** Critical and High findings may block CI only under an explicitly defined enforcement policy. A successful workflow is not proof of merge protection; repository branch rules and required checks are separate administrative controls.
 
-**ARCHITECTURAL PROPOSAL:** A policy is trusted only when its exact version is obtained from an owner-approved authority source and its approval provenance is verified independently of the run request. A digest alone is not authorization. If the trusted policy source, approval, or required-check set is absent, conflicting, expired, or unrecognized, the policy result is `INDETERMINATE`; there is no permissive default. Operator-supplied policy and matching digests remain untrusted data.
+**ARCHITECTURAL PROPOSAL:** A policy is trusted only when its exact version is obtained from an owner-approved authority source and its approval provenance is verified independently of the run request. A digest alone is not authorization. If the trusted policy source, approval, or required-check set is absent, conflicting, expired, or unrecognized before execution, refuse to start (`REFUSED`); there is no policy decision and no permissive default. If required evidence is lost after execution begins, retain the applicable execution state and use policy `INDETERMINATE`, unless valid evidence independently establishes a blocking finding. Operator-supplied policy and matching digests remain untrusted data.
+
+The proposed trust-root enrollment, signed statement purposes, sequence/expiry behavior, and authority rules are defined in [trust bootstrap and policy authority](TRUST_BOOTSTRAP_AND_POLICY_AUTHORITY.md). If the trust anchor or policy approval is missing or invalid before a run, the action is `REFUSED` and no trusted policy evaluation begins. `REFUSED` is not a policy `BLOCK` and is never PASS. A run already underway that loses required trust/freshness or evidence is `INCOMPLETE` and policy `INDETERMINATE` unless valid evidence independently establishes a blocking finding.
 
 Keep these axes independent:
 1. **Finding:** rule/tool, native severity, normalized severity, confidence, location, evidence, status and disposition.
@@ -24,13 +26,14 @@ The trusted policy, not a run requester, declares each expected check mandatory 
 | Optional check is skipped or unsupported, and trusted policy explicitly classifies it optional | Complete only for policy-required scope; limitation remains visible | May be PASS if all mandatory conditions otherwise hold |
 | Optional check fails, is cancelled, or emits a malformed/truncated report, and trusted policy explicitly classifies it optional | Preserve its actual non-success state and the resulting coverage limitation | May be PASS only for policy-required scope; never report the optional check as successful or imply its coverage |
 | Required scanner succeeds with zero findings | Successful execution; does not establish no vulnerabilities exist | PASS only if every other mandatory evidence/coverage condition holds |
-| Policy or authorization source is untrusted, missing, expired, or conflicting | Refused or incomplete | INDETERMINATE; required CI gate must return non-success |
+| Trusted policy/authorization is untrusted, missing, expired, or conflicting before execution | No run began; `REFUSED` | No policy decision; required CI gate must return non-success |
+| Required trust/freshness/evidence becomes unavailable after execution begins | `INCOMPLETE` (or applicable failed/cancelled state) | `INDETERMINATE` unless a valid blocking finding under trusted policy already requires `BLOCK` |
 
-Precedence for a final policy decision: (1) BLOCK when valid evidence already establishes an unexcepted threshold violation; otherwise (2) INDETERMINATE when a required input/check/coverage condition is unresolved; otherwise (3) PASS. CI enforcement must treat both BLOCK and INDETERMINATE as a non-success for a required gate. A PASS is limited to the exact trusted policy and declared scope; it is not an independent verification, release approval, or framework compliance claim.
+Precedence for a final policy decision: (1) BLOCK when valid evidence under a trusted policy establishes an unexcepted threshold violation; otherwise (2) INDETERMINATE when a required input/check/coverage condition is unresolved; otherwise (3) PASS. CI enforcement must treat both BLOCK and INDETERMINATE as a non-success for a required gate. A PASS is limited to the exact trusted policy and declared scope; it is not an independent verification, release approval, or framework compliance claim.
 
 An exception requires a designated authorized reviewer, exact repository and commit, finding identity or explicit narrow selector, reason, decision time and expiry. It can change treatment only for the named finding(s), remains visible in the report, and cannot waive mandatory checks, evidence freshness, scope or target authorization. A PASS with any applied exception must visibly say so. Expired, conflicting, or broadened exceptions are invalid. Finding false-positive disposition and policy exception are separate records.
 
-Run states `COMPLETE`, `INCOMPLETE`, `FAILED`, `CANCELLED`; policy decisions `PASS`, `BLOCK`, `INDETERMINATE`; coverage, independent verification and human authorization remain separate. A finding status is never a run status.
+Execution states `COMPLETE`, `INCOMPLETE`, `FAILED`, `CANCELLED`; preflight disposition `REFUSED` means no authorized run began; policy decisions `PASS`, `BLOCK`, `INDETERMINATE`. Coverage, independent verification and human authorization remain separate. A finding status is never an execution state or policy decision.
 
 ### Adversarial examples
 

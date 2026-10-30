@@ -38,12 +38,14 @@ v1 includes SAST, SCA, secrets/configuration, supply-chain evaluation, authorize
 
 1. ECE historical `main` remains frozen at bootstrap SHA `bead6837e1ec03c8fe1ac3c8d09fd374fb8b0e02`; its README labels that state documentation-only.
 2. ECE issue #3 records independent `GOV_01_INDEPENDENT_REDTEAM_PASS_WITH_LIMITATIONS` for the bounded offline Rust verifier/CLI at exact SHA `415990746d5bbd3756f743b4b5a7673b36228567`. The acceptance is limited to local/offline schema, digest, semantic/verdict and release checks. It does not claim authenticated GitHub provenance, production approval, main promotion, or ATM integration.
-3. ECE `development` currently points to `ccde36586a4df170db38f018d6eb8a8a653de99f`, five commits beyond that accepted SHA. The intervening changes include a `.github/workflows/build-and-test.yml`, `ece/src/github/{client,evaluator,models,policy}.rs`, a mock adapter test, and a GOV-02 plan. This is changing development work; it is not covered by the GOV-01 acceptance.
-4. ECE issue #4, “GOV-02: GitHub read-only evidence adapter,” remains OPEN. Its scope and current development code are not accepted as a stable external interface. No interface in the inspected evidence is approved as SAR's production contract.
+3. ECE `development` currently points to `4cf9f2245f31d04c9c9699d9d1c998b0e658c7e7`, six commits beyond that accepted SHA. The changing development tree includes the GitHub read-only adapter, tests, workflow, plan, and a follow-up commit addressing independent review findings from the preceding `ccde36586a4df170db38f018d6eb8a8a653de99f` candidate.
+4. ECE issue #4, “GOV-02: GitHub read-only evidence adapter,” remains OPEN. The independent review comment on `ccde36586a4df170db38f018d6eb8a8a653de99f` required targeted corrections. The current `4cf9f2245f31d04c9c9699d9d1c998b0e658c7e7` development head is a later changing candidate; no independent acceptance of that exact head or stable SAR-facing contract was observed. It is not covered by the accepted GOV-01 offline-verifier scope.
 
 **ARCHITECTURAL PROPOSAL:** SAR may later export an adapter bundle for an ECE interface only after ECE publishes/accepts that contract and a separate compatibility review pins its version. Bundle source identity, run/attempt identity, tool/database provenance, input/output digests, test coverage, failures/skips/unknowns, policy result and limitations. ECE's accepted offline verifier can validate only its bounded declared checks; it cannot establish that SAR selected adequate tests or found every vulnerability. ATM remains a prospective read-only consumer of verified outputs, not SAR's authority. No ECE or ATM code is changed or duplicated.
 
 **UNRESOLVED DECISION:** Which ECE release/interface will eventually be supported, and how an adapter will distinguish accepted offline-verifier facts from unaccepted GitHub-adapter evidence. Recheck the exact source and acceptance status before GOV-05.
+
+The proposed independent SAR policy trust root and authenticated approvals are described in [trust bootstrap and policy authority](TRUST_BOOTSTRAP_AND_POLICY_AUTHORITY.md). ECE verification of a SAR artifact would not establish that the policy root was owner-approved unless a future ECE contract explicitly supports and verifies that claim; it would still not establish scan adequacy.
 
 ## Status register
 
