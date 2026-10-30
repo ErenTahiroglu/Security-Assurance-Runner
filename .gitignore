@@ -1,0 +1,16 @@
+# Local files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Future generated artifacts; no runtime currently exists
+dist/
+build/
+coverage/
+reports/
