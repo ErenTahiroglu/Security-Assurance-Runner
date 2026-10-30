@@ -1,10 +1,44 @@
+use ed25519_dalek::{Signer, SigningKey};
 use security_assurance_runner::{
     contract::input_digest,
     evaluation::{Decision, Execution},
     reconcile::{
-        Binding, CheckRecord, ExpectedStage, Report, StageInput, SyntheticPlan, reconcile,
+        Binding, CheckRecord, ExpectedStage, Report, StageInput, SyntheticPlan, SyntheticReceipt,
+        reconcile as reconcile_raw,
     },
+    trust::{POLICY_TYPE, SyntheticTrust, pae, verify_synthetic_policy},
 };
+
+fn reconcile(plan: &SyntheticPlan, inputs: &[StageInput]) -> SyntheticReceipt {
+    let key = SigningKey::from_bytes(&[7; 32]);
+    let verification_key = key.verifying_key();
+    let payload =
+        serde_json::json!({"version":1,"purpose":"policy","issuer":"fixture-owner","role":"owner",
+        "provider":"github","repository_id":"123","policy_id":"policy",
+        "policy_digest":input_digest(b"fixture policy"),"sequence":2,"not_before":10,"expires":200})
+        .to_string()
+        .into_bytes();
+    let signature = key.sign(&pae(POLICY_TYPE, &payload)).to_bytes();
+    let context = SyntheticTrust {
+        key: Some(&verification_key),
+        issuer: "fixture-owner",
+        repository_id: "123",
+        policy_id: "policy",
+        minimum_sequence: 2,
+        now: 100,
+        freshness_current: true,
+        revoked: false,
+    };
+    let verified = verify_synthetic_policy(
+        &context,
+        POLICY_TYPE,
+        &payload,
+        &signature,
+        b"fixture policy",
+    )
+    .unwrap();
+    reconcile_raw(plan, inputs, Some(&verified))
+}
 
 fn fixture() -> (SyntheticPlan, Vec<StageInput>) {
     let binding = Binding {
@@ -12,7 +46,7 @@ fn fixture() -> (SyntheticPlan, Vec<StageInput>) {
         repository_id: "123".into(),
         commit: "a".repeat(40),
         policy_id: "policy".into(),
-        policy_digest: "b".repeat(64),
+        policy_digest: input_digest(b"fixture policy"),
         policy_sequence: 2,
         run_id: "run-1".into(),
         plan_id: "plan-1".into(),
@@ -72,6 +106,10 @@ fn valid_synthetic_report_produces_only_labeled_fixture_pass() {
     assert_eq!(r.policy_decision, Decision::Pass);
     assert_eq!(r.execution, Execution::Complete);
     assert_eq!(r.verification, "SYNTHETIC_ONLY");
+    assert_eq!(
+        reconcile_raw(&plan, &inputs, None).policy_decision,
+        Decision::Indeterminate
+    );
 }
 #[test]
 fn missing_corrupt_duplicate_and_malformed_are_indeterminate() {

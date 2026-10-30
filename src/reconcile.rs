@@ -1,6 +1,7 @@
 //! Offline synthetic reconciliation. No external provider or scanner is authenticated.
 use crate::contract::{MAX_CHECKS, MAX_INPUT, input_digest};
 use crate::evaluation::{Decision, Execution};
+use crate::trust::SyntheticVerifiedPolicy;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -108,7 +109,11 @@ fn valid_binding(b: &Binding) -> bool {
         && hex(&b.plan_digest, 64)
 }
 /// Plan is a synthetic test fixture, not an authenticated policy or run authorization.
-pub fn reconcile(plan: &SyntheticPlan, inputs: &[StageInput]) -> SyntheticReceipt {
+pub fn reconcile(
+    plan: &SyntheticPlan,
+    inputs: &[StageInput],
+    policy: Option<&SyntheticVerifiedPolicy>,
+) -> SyntheticReceipt {
     let mut observed = BTreeSet::new();
     let mut invalid = BTreeSet::new();
     let mut checks = BTreeSet::new();
@@ -121,6 +126,15 @@ pub fn reconcile(plan: &SyntheticPlan, inputs: &[StageInput]) -> SyntheticReceip
     let mut all_checks = BTreeSet::new();
     let mut bad_plan =
         !valid_binding(&plan.binding) || plan.stages.is_empty() || plan.stages.len() > MAX_CHECKS;
+    match policy {
+        Some(p)
+            if p.statement.provider == plan.binding.provider
+                && p.statement.repository_id == plan.binding.repository_id
+                && p.statement.policy_id == plan.binding.policy_id
+                && p.statement.policy_digest == plan.binding.policy_digest
+                && p.statement.sequence == plan.binding.policy_sequence => {}
+        _ => bad_plan = true,
+    }
     let mut expected_checks = BTreeSet::new();
     for stage in plan.stages.iter().take(MAX_CHECKS + 1) {
         if !identifier(&stage.id)

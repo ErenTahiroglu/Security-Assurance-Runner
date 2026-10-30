@@ -53,8 +53,12 @@ pub enum Refusal {
 
 #[derive(Debug)]
 pub struct SyntheticVerifiedPolicy {
-    pub statement: PolicyStatement,
-    pub test_only: bool,
+    pub(crate) statement: PolicyStatement,
+}
+impl SyntheticVerifiedPolicy {
+    pub fn test_only(&self) -> bool {
+        true
+    }
 }
 
 /// DSSE v1 pre-authentication encoding: lengths are UTF-8 byte lengths.
@@ -122,8 +126,5 @@ pub fn verify_synthetic_policy(
     if s.not_before >= s.expires || context.now < s.not_before || context.now >= s.expires {
         return Err(Refusal::OutsideValidity);
     }
-    Ok(SyntheticVerifiedPolicy {
-        statement: s,
-        test_only: true,
-    })
+    Ok(SyntheticVerifiedPolicy { statement: s })
 }

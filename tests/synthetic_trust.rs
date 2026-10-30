@@ -31,7 +31,7 @@ fn verify(value: &Value, signer: &SigningKey, trusted: bool) -> Result<(), Refus
         revoked: false,
     };
     verify_synthetic_policy(&ctx, POLICY_TYPE, &bytes, &sig, b"synthetic policy")
-        .map(|v| assert!(v.test_only))
+        .map(|v| assert!(v.test_only()))
 }
 #[test]
 fn dsse_pae_known_vector() {
