@@ -32,6 +32,14 @@
 
 v1 includes SAST, SCA, secrets/configuration, supply-chain evaluation, authorized isolated DAST and fuzzing, standards mapping, auditable findings, risk-based CI policy and evidence export. v2 alone includes AI review and authorized adversarial AI-agent testing. Default operation has no AI. Details: [roadmap](ROADMAP_AND_ACCEPTANCE_GATES.md).
 
+## ECE and ATM boundary
+
+**VERIFIED SOURCE FACT:** At observed ECE `main` SHA `bead6837e1ec03c8fe1ac3c8d09fd374fb8b0e02` (2026-10-30), ECE README and `docs/INTEGRATION_CONTRACT.md` describe a documentation-only bootstrap and a draft external-consumer contract: offline versioned JSON or CLI stdout; consumer read-only; rejection of unknown schema, repository/commit mismatch, missing/expired evidence, hostile payload indicators and missing trust anchors. The contract is explicitly draft and no functional API is implemented there.
+
+**ARCHITECTURAL PROPOSAL:** SAR may export a versioned evidence bundle compatible with future ECE input after ECE publishes and accepts a schema. Bundle source identity, run/attempt identity, tool and database provenance, input/output digests, test coverage, failures/skips/unknowns, policy result and limitations. ECE can assess consistency and integrity within its actual accepted capability; it cannot establish that SAR selected adequate tests or found every vulnerability. AI-Toolchain-Manager is a prospective read-only consumer of independently verified output, not SAR's authority. No ECE or ATM code is changed or duplicated.
+
+**UNRESOLVED DECISION:** ECE schema/version, signature/trust-anchor details and supported transport remain draft and must be rechecked before GOV-05.
+
 ## Status register
 
 - **VERIFIED SOURCE FACT:** SARIF 2.1.0, CycloneDX and OSCAL are extant interoperability specifications; their existence does not establish fit or implementation.

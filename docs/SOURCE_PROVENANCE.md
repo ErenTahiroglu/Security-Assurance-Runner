@@ -6,7 +6,7 @@ Research snapshot prepared 2026-10-30. Links are sources, not endorsements; muta
 - SAR: https://github.com/ErenTahiroglu/Security-Assurance-Runner (REST ID 1439402924; owner ErenTahiroğlu).
 - DefectDojo reference commit: https://github.com/DefectDojo/django-DefectDojo/commit/c360df03a9399cbe6b26138bd0289949c27eb732 (verified exact SHA; BSD-3-Clause).
 - GUAC reference commit: https://github.com/guacsec/guac/commit/a3f0a4df51abcf271221cf9c400de3158d9c20fa (verified exact SHA; Apache-2.0).
-- ECE reference: https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine. Integration concepts remain proposals; exact accepted interface/version was not verified in this research pass.
+- ECE reference snapshot: https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine/tree/bead6837e1ec03c8fe1ac3c8d09fd374fb8b0e02 (observed `main` SHA on 2026-10-30). Read `README.md` and `docs/INTEGRATION_CONTRACT.md`; latter is explicitly a draft, with no functional API implemented.
 
 ## Standards sources
 - OWASP Top 10:2025: https://top10.owasp.org/2025/
