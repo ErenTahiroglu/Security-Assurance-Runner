@@ -14,3 +14,6 @@ dist/
 build/
 coverage/
 reports/
+
+# Cargo build artifacts
+/target/

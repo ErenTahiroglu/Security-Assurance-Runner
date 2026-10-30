@@ -1,0 +1,35 @@
+name: GOV-01 prototype checks
+on:
+  push:
+    branches: [development]
+permissions:
+  contents: read
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: X64
+          - os: windows-2025
+            arch: X64
+          - os: macos-15
+            arch: ARM64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify runner architecture
+        shell: bash
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          echo "runner_os=$RUNNER_OS runner_arch=$RUNNER_ARCH"
+          test "$RUNNER_ARCH" = "$EXPECTED_ARCH"
+          rustc -vV
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+      - run: cargo build --locked

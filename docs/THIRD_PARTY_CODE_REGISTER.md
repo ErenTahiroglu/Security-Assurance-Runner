@@ -1,6 +1,6 @@
 # Third-party code register
 
-**Current status:** No third-party implementation code is incorporated. No dependencies are declared.
+**Current status:** No DefectDojo or GUAC implementation code is copied. GOV-01 declares external Cargo dependencies; see [dependency provenance](gov-01/GOV_01_IMPLEMENTATION_REPORT.md) and [notices](THIRD_PARTY_NOTICES.md).
 
 | Project | Reference SHA | License stated by project | Files copied | Status |
 |---|---|---|---|---|

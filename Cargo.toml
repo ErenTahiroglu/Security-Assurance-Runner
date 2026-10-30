@@ -1,0 +1,13 @@
+[package]
+name = "security-assurance-runner"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+ed25519-dalek = { version = "3", default-features = false, features = ["zeroize"] }
