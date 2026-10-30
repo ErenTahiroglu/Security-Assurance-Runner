@@ -109,13 +109,32 @@ No new ADR was created: the architecture alternatives and explicit owner-decisio
 
 ## Validation record
 
-Local documentation validation performed before commit:
+Validation commands and observed results:
 
-- Reviewed the full staged diff and changed-file set: **11 Markdown files** (9 modified, 2 added), with no unrelated files. `git diff --cached --check` completed with exit 0. Cross-document review aligned `REFUSED`, `INCOMPLETE`, `INDETERMINATE`, `BLOCK` and `PASS` semantics, authority scopes, ECE limits, AI-off scope, and GOV-01 authorization gates. The two new documents were separately scanned for trailing whitespace; no matches were found.
-- A read-only Python Markdown-link check traversed 23 Markdown files and 39 relative links; result: **0 broken relative targets**, exit 0. The macOS Python launcher emitted `xcrun` cache/event-stream warnings in the restricted read-only environment, then completed the check successfully. External source links were checked against the official sources and exact repository references listed in [`SOURCE_PROVENANCE.md`](../SOURCE_PROVENANCE.md); external link availability is not guaranteed beyond this retrieval date.
-- Secret/private-path scan using `rg -n --` for private-key headers, common GitHub token patterns, and local absolute-path prefixes returned no matches (expected `rg` exit 1 for no matches). Trailing-whitespace scan of both new documents also returned no matches.
-- `git diff --exit-code -- LICENSE.md README.md .gitignore SECURITY.md docs/BRANCH_GOVERNANCE.md docs/THIRD_PARTY_CODE_REGISTER.md docs/THIRD_PARTY_NOTICES.md` completed with exit 0. The changed-file set contains Markdown documentation only; no executable sources, workflow, dependency manifest, generated trust material or third-party code were added.
-- Repository REST identity, starting branch/HEAD, origin refs, worktrees and stashes were checked before editing. GitHub reported SAR repo ID `1439402924`, default branch `main`, main SHA `956ae354e0e02e05154acc71a0158f5bf96f02fa`, development SHA `4f0e4adbee4e75495b3917845d1558dfcdd6b85e`, both branches unprotected, zero rulesets and zero Actions runs. Final commit and remote synchronization evidence is recorded in the Issue #1 author handoff.
+- Reviewed the full changed-file set: **11 Markdown files** (9 modified, 2 added), with no unrelated files. Cross-document review aligned `REFUSED`, `INCOMPLETE`, `INDETERMINATE`, `BLOCK` and `PASS` semantics, authority scopes, ECE limits, AI-off scope, and GOV-01 authorization gates.
+- `git diff --check` and `git diff --cached --check` — exit 0. The new documents also received a separate trailing-whitespace scan, with no matches.
+- Relative Markdown link check (read-only; same command logic used for the recorded 23/39/0 result):
+
+  ```sh
+  python3 -c 'import pathlib,re,sys; root=pathlib.Path("."); files=list(root.glob("**/*.md")); broken=[]; n=0; rx=re.compile(r"\]\(([^)]+)\)")
+  for f in files:
+   for raw in rx.findall(f.read_text()):
+    target=raw.strip().strip("<>")
+    if target.startswith(("http://","https://","mailto:","#")): continue
+    target=target.split("#",1)[0].split("?",1)[0]
+    if not target: continue
+    n+=1
+    if not (f.parent/target).resolve().exists(): broken.append((str(f),raw))
+  print(f"Markdown files={len(files)} relative links={n} broken={len(broken)}")
+  for f,u in broken: print(f"BROKEN {f}: {u}")
+  sys.exit(bool(broken))'
+  ```
+
+  Output: `Markdown files=23 relative links=39 broken=0`; exit 0. The macOS Python launcher emitted `xcrun` cache-creation (`Operation not permitted`) and file-event-stream warnings in the restricted environment; the Python check itself completed successfully. External sources were checked against the official pages and exact repository references in [`SOURCE_PROVENANCE.md`](../SOURCE_PROVENANCE.md); this is not a continuing uptime guarantee.
+- Secret/private-path scan used `rg -n --` across all 11 changed Markdown files for private-key headers, common GitHub token formats, and local absolute-path prefixes; it returned no matches (expected `rg` exit 1). A trailing-whitespace scan of the two added documents also returned no matches.
+- `git diff --exit-code -- LICENSE.md README.md .gitignore SECURITY.md docs/BRANCH_GOVERNANCE.md docs/THIRD_PARTY_CODE_REGISTER.md docs/THIRD_PARTY_NOTICES.md` — exit 0. No executable sources, workflow, dependency manifest, generated trust material or third-party code were added. No third-party implementation code was copied.
+- GitHub checks before editing confirmed SAR REST repo ID `1439402924`, default `main`, `main` SHA `956ae354e0e02e05154acc71a0158f5bf96f02fa`, and `development` SHA `4f0e4adbee4e75495b3917845d1558dfcdd6b85e`; both branches were unprotected, ruleset count was 0, and Actions run count was 0. Local preflight found no stashes and one SAR worktree.
+- Initial R2 content push: `git push origin development:development` — exit 0. A sandbox `git ls-remote` attempt then failed DNS resolution (`Could not resolve host: github.com`); rerunning with network escalation succeeded and returned `development=916bd39eeaaac912c170761f308c052a34a2e452`, `main=956ae354e0e02e05154acc71a0158f5bf96f02fa`. A follow-up documentation-only commit records the exact validation command and this observed limitation; its final candidate SHA and synchronization are recorded in the latest Issue #1 handoff. No force push was used.
 - GitHub CI was **not run**. No security scanner, active test, cryptographic test or GOV-01 code was run or implemented.
 
 ## Independent handoff
