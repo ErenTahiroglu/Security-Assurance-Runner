@@ -34,11 +34,16 @@ v1 includes SAST, SCA, secrets/configuration, supply-chain evaluation, authorize
 
 ## ECE and ATM boundary
 
-**VERIFIED SOURCE FACT:** At observed ECE `main` SHA `bead6837e1ec03c8fe1ac3c8d09fd374fb8b0e02` (2026-10-30), ECE README and `docs/INTEGRATION_CONTRACT.md` describe a documentation-only bootstrap and a draft external-consumer contract: offline versioned JSON or CLI stdout; consumer read-only; rejection of unknown schema, repository/commit mismatch, missing/expired evidence, hostile payload indicators and missing trust anchors. The contract is explicitly draft and no functional API is implemented there.
+**VERIFIED SOURCE FACT (checked 2026-10-30):**
 
-**ARCHITECTURAL PROPOSAL:** SAR may export a versioned evidence bundle compatible with future ECE input after ECE publishes and accepts a schema. Bundle source identity, run/attempt identity, tool and database provenance, input/output digests, test coverage, failures/skips/unknowns, policy result and limitations. ECE can assess consistency and integrity within its actual accepted capability; it cannot establish that SAR selected adequate tests or found every vulnerability. AI-Toolchain-Manager is a prospective read-only consumer of independently verified output, not SAR's authority. No ECE or ATM code is changed or duplicated.
+1. ECE historical `main` remains frozen at bootstrap SHA `bead6837e1ec03c8fe1ac3c8d09fd374fb8b0e02`; its README labels that state documentation-only.
+2. ECE issue #3 records independent `GOV_01_INDEPENDENT_REDTEAM_PASS_WITH_LIMITATIONS` for the bounded offline Rust verifier/CLI at exact SHA `415990746d5bbd3756f743b4b5a7673b36228567`. The acceptance is limited to local/offline schema, digest, semantic/verdict and release checks. It does not claim authenticated GitHub provenance, production approval, main promotion, or ATM integration.
+3. ECE `development` currently points to `ccde36586a4df170db38f018d6eb8a8a653de99f`, five commits beyond that accepted SHA. The intervening changes include a `.github/workflows/build-and-test.yml`, `ece/src/github/{client,evaluator,models,policy}.rs`, a mock adapter test, and a GOV-02 plan. This is changing development work; it is not covered by the GOV-01 acceptance.
+4. ECE issue #4, “GOV-02: GitHub read-only evidence adapter,” remains OPEN. Its scope and current development code are not accepted as a stable external interface. No interface in the inspected evidence is approved as SAR's production contract.
 
-**UNRESOLVED DECISION:** ECE schema/version, signature/trust-anchor details and supported transport remain draft and must be rechecked before GOV-05.
+**ARCHITECTURAL PROPOSAL:** SAR may later export an adapter bundle for an ECE interface only after ECE publishes/accepts that contract and a separate compatibility review pins its version. Bundle source identity, run/attempt identity, tool/database provenance, input/output digests, test coverage, failures/skips/unknowns, policy result and limitations. ECE's accepted offline verifier can validate only its bounded declared checks; it cannot establish that SAR selected adequate tests or found every vulnerability. ATM remains a prospective read-only consumer of verified outputs, not SAR's authority. No ECE or ATM code is changed or duplicated.
+
+**UNRESOLVED DECISION:** Which ECE release/interface will eventually be supported, and how an adapter will distinguish accepted offline-verifier facts from unaccepted GitHub-adapter evidence. Recheck the exact source and acceptance status before GOV-05.
 
 ## Status register
 

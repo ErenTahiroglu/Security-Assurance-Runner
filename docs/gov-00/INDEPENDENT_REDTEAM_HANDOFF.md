@@ -13,6 +13,7 @@
 - `docs/gov-00/STANDARDS_AND_CONTROL_MAPPING.md`
 - `docs/gov-00/THIRD_PARTY_REUSE_ASSESSMENT.md`
 - `docs/gov-00/ROADMAP_AND_ACCEPTANCE_GATES.md`
+- `docs/gov-00/GOV_00_R1_REDTEAM_RESPONSE.md` — author dispositions and remaining limitations for SAR-G00-RT01–RT06
 - `docs/THIRD_PARTY_CODE_REGISTER.md`, `docs/THIRD_PARTY_NOTICES.md`, `docs/SOURCE_PROVENANCE.md`
 
 ## Questions to answer

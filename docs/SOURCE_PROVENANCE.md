@@ -6,7 +6,10 @@ Research snapshot prepared 2026-10-30. Links are sources, not endorsements; muta
 - SAR: https://github.com/ErenTahiroglu/Security-Assurance-Runner (REST ID 1439402924; owner ErenTahiroğlu).
 - DefectDojo reference commit: https://github.com/DefectDojo/django-DefectDojo/commit/c360df03a9399cbe6b26138bd0289949c27eb732 (verified exact SHA; BSD-3-Clause).
 - GUAC reference commit: https://github.com/guacsec/guac/commit/a3f0a4df51abcf271221cf9c400de3158d9c20fa (verified exact SHA; Apache-2.0).
-- ECE reference snapshot: https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine/tree/bead6837e1ec03c8fe1ac3c8d09fd374fb8b0e02 (observed `main` SHA on 2026-10-30). Read `README.md` and `docs/INTEGRATION_CONTRACT.md`; latter is explicitly a draft, with no functional API implemented.
+- ECE historical `main` bootstrap: https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine/tree/bead6837e1ec03c8fe1ac3c8d09fd374fb8b0e02 (rechecked 2026-10-30; README describes documentation-only bootstrap).
+- ECE independently accepted GOV-01 offline verifier: https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine/tree/415990746d5bbd3756f743b4b5a7673b36228567; acceptance and limitations recorded in https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine/issues/3#issuecomment-6516966400.
+- ECE current development observation: https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine/tree/ccde36586a4df170db38f018d6eb8a8a653de99f (rechecked 2026-10-30). Five commits beyond accepted GOV-01; includes GitHub adapter source/tests and a build workflow. These changes are unaccepted GOV-02 development; issue #4 remains open: https://github.com/ErenTahiroglu/Evidence-Checkpoint-Engine/issues/4.
+- ECE integration contract in historical main is a draft; no accepted stable SAR-facing adapter contract was established by this review. Changing development does not change that status by itself.
 
 ## Standards sources
 - OWASP Top 10:2025: https://top10.owasp.org/2025/

@@ -6,7 +6,7 @@
 |---|---|---|
 | BOOTSTRAP-00 | Initial docs/license and two branches | Identity, branch and clean-tree evidence |
 | GOV-00 | Architecture, threat, standards, policy and provenance foundation | Independent Red Team review; explicit owner disposition |
-| GOV-01 | Minimal executable runner core and deterministic contracts | Candidate SHA, deterministic negative tests, cross-platform boundary evidence |
+| GOV-01 | Bounded, reversible Rust-first runner-core proof-of-concept and deterministic contracts (proposed only) | Starts only after independent GOV-00 acceptance and explicit owner authorization; candidate SHA, deterministic negative tests, cross-platform boundary evidence; final runtime selection remains a later evidence-based decision |
 | GOV-02 | Selected SAST/SCA/secret adapters | Pinned tools, hostile output tests, source/coverage declarations |
 | GOV-03 | Authorized isolated DAST and fuzzing | Scope/egress enforcement, isolation evidence, authorization tests |
 | GOV-04 | CI/local/hybrid execution, policy and reports | Missing/stale/failed checks fail safely; policy and exception tests |
