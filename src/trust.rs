@@ -1,8 +1,9 @@
 //! Nonproduction verification of DSSE PAE bytes under an explicitly supplied fixture root.
 //! No root enrollment or operational authorization exists in this module.
-use crate::contract::{MAX_INPUT, input_digest};
+use crate::contract::{MAX_CHECKS, MAX_INPUT, input_digest};
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::Deserialize;
+use std::collections::BTreeSet;
 
 pub const POLICY_TYPE: &str = "application/vnd.sar.synthetic-policy.v1+json";
 
@@ -20,6 +21,13 @@ pub struct PolicyStatement {
     pub sequence: u64,
     pub not_before: u64,
     pub expires: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SyntheticPolicy {
+    version: u32,
+    mandatory_checks: Vec<String>,
 }
 
 /// Values must originate from controlled fixture setup, never from the request being verified.
@@ -47,6 +55,7 @@ pub enum Refusal {
     WrongIssuer,
     WrongRepository,
     WrongPolicy,
+    InvalidPolicy,
     OldSequence,
     OutsideValidity,
 }
@@ -54,6 +63,7 @@ pub enum Refusal {
 #[derive(Debug)]
 pub struct SyntheticVerifiedPolicy {
     pub(crate) statement: PolicyStatement,
+    pub(crate) mandatory_checks: BTreeSet<String>,
 }
 impl SyntheticVerifiedPolicy {
     pub fn test_only(&self) -> bool {
@@ -120,11 +130,31 @@ pub fn verify_synthetic_policy(
     if s.policy_id != context.policy_id || s.policy_digest != input_digest(policy_bytes) {
         return Err(Refusal::WrongPolicy);
     }
+    let policy: SyntheticPolicy =
+        serde_json::from_slice(policy_bytes).map_err(|_| Refusal::InvalidPolicy)?;
+    let mandatory_checks: BTreeSet<String> = policy.mandatory_checks.iter().cloned().collect();
+    if policy.version != 1
+        || policy.mandatory_checks.is_empty()
+        || policy.mandatory_checks.len() > MAX_CHECKS
+        || mandatory_checks.len() != policy.mandatory_checks.len()
+        || mandatory_checks.iter().any(|id| {
+            id.is_empty()
+                || id.len() > 128
+                || !id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_:.".contains(&b))
+        })
+    {
+        return Err(Refusal::InvalidPolicy);
+    }
     if s.sequence < context.minimum_sequence || s.sequence == 0 {
         return Err(Refusal::OldSequence);
     }
     if s.not_before >= s.expires || context.now < s.not_before || context.now >= s.expires {
         return Err(Refusal::OutsideValidity);
     }
-    Ok(SyntheticVerifiedPolicy { statement: s })
+    Ok(SyntheticVerifiedPolicy {
+        statement: s,
+        mandatory_checks,
+    })
 }

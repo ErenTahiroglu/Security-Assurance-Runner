@@ -7,7 +7,7 @@ use security_assurance_runner::{
 use serde_json::{Value, json};
 
 fn policy() -> Value {
-    json!({"version":1,"purpose":"policy","issuer":"fixture-owner","role":"owner","provider":"github","repository_id":"123","policy_id":"p1","policy_digest":input_digest(b"synthetic policy"),"sequence":2,"not_before":10,"expires":200})
+    json!({"version":1,"purpose":"policy","issuer":"fixture-owner","role":"owner","provider":"github","repository_id":"123","policy_id":"p1","policy_digest":input_digest(b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"),"sequence":2,"not_before":10,"expires":200})
 }
 fn key() -> SigningKey {
     SigningKey::from_bytes(&[7; 32])
@@ -30,8 +30,14 @@ fn verify(value: &Value, signer: &SigningKey, trusted: bool) -> Result<(), Refus
         freshness_current: true,
         revoked: false,
     };
-    verify_synthetic_policy(&ctx, POLICY_TYPE, &bytes, &sig, b"synthetic policy")
-        .map(|v| assert!(v.test_only()))
+    verify_synthetic_policy(
+        &ctx,
+        POLICY_TYPE,
+        &bytes,
+        &sig,
+        b"{\"version\":1,\"mandatory_checks\":[\"required\"]}",
+    )
+    .map(|v| assert!(v.test_only()))
 }
 #[test]
 fn dsse_pae_known_vector() {
@@ -79,29 +85,63 @@ fn signatures_types_freshness_and_duplicate_fields_are_rejected() {
         revoked: false,
     };
     assert_eq!(
-        verify_synthetic_policy(&c, "other", &bytes, &sig, b"synthetic policy").unwrap_err(),
+        verify_synthetic_policy(
+            &c,
+            "other",
+            &bytes,
+            &sig,
+            b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"
+        )
+        .unwrap_err(),
         Refusal::WrongType
     );
     assert_eq!(
-        verify_synthetic_policy(&c, POLICY_TYPE, &bytes, &[0; 64], b"synthetic policy")
-            .unwrap_err(),
+        verify_synthetic_policy(
+            &c,
+            POLICY_TYPE,
+            &bytes,
+            &[0; 64],
+            b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"
+        )
+        .unwrap_err(),
         Refusal::InvalidSignature
     );
     let mut changed = bytes.clone();
     changed.push(b' ');
     assert_eq!(
-        verify_synthetic_policy(&c, POLICY_TYPE, &changed, &sig, b"synthetic policy").unwrap_err(),
+        verify_synthetic_policy(
+            &c,
+            POLICY_TYPE,
+            &changed,
+            &sig,
+            b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"
+        )
+        .unwrap_err(),
         Refusal::InvalidSignature
     );
     c.revoked = true;
     assert_eq!(
-        verify_synthetic_policy(&c, POLICY_TYPE, &bytes, &sig, b"synthetic policy").unwrap_err(),
+        verify_synthetic_policy(
+            &c,
+            POLICY_TYPE,
+            &bytes,
+            &sig,
+            b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"
+        )
+        .unwrap_err(),
         Refusal::Revoked
     );
     c.revoked = false;
     c.freshness_current = false;
     assert_eq!(
-        verify_synthetic_policy(&c, POLICY_TYPE, &bytes, &sig, b"synthetic policy").unwrap_err(),
+        verify_synthetic_policy(
+            &c,
+            POLICY_TYPE,
+            &bytes,
+            &sig,
+            b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"
+        )
+        .unwrap_err(),
         Refusal::StaleFreshness
     );
     c.freshness_current = true;
@@ -111,8 +151,14 @@ fn signatures_types_freshness_and_duplicate_fields_are_rejected() {
         .into_bytes();
     let signed = key().sign(&pae(POLICY_TYPE, &duplicate)).to_bytes();
     assert_eq!(
-        verify_synthetic_policy(&c, POLICY_TYPE, &duplicate, &signed, b"synthetic policy")
-            .unwrap_err(),
+        verify_synthetic_policy(
+            &c,
+            POLICY_TYPE,
+            &duplicate,
+            &signed,
+            b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"
+        )
+        .unwrap_err(),
         Refusal::InvalidStatement
     );
 }

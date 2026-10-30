@@ -15,7 +15,7 @@ fn reconcile(plan: &SyntheticPlan, inputs: &[StageInput]) -> SyntheticReceipt {
     let payload =
         serde_json::json!({"version":1,"purpose":"policy","issuer":"fixture-owner","role":"owner",
         "provider":"github","repository_id":"123","policy_id":"policy",
-        "policy_digest":input_digest(b"fixture policy"),"sequence":2,"not_before":10,"expires":200})
+        "policy_digest":input_digest(b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"),"sequence":2,"not_before":10,"expires":200})
         .to_string()
         .into_bytes();
     let signature = key.sign(&pae(POLICY_TYPE, &payload)).to_bytes();
@@ -34,7 +34,7 @@ fn reconcile(plan: &SyntheticPlan, inputs: &[StageInput]) -> SyntheticReceipt {
         POLICY_TYPE,
         &payload,
         &signature,
-        b"fixture policy",
+        b"{\"version\":1,\"mandatory_checks\":[\"required\"]}",
     )
     .unwrap();
     reconcile_raw(plan, inputs, Some(&verified))
@@ -46,7 +46,7 @@ fn fixture() -> (SyntheticPlan, Vec<StageInput>) {
         repository_id: "123".into(),
         commit: "a".repeat(40),
         policy_id: "policy".into(),
-        policy_digest: input_digest(b"fixture policy"),
+        policy_digest: input_digest(b"{\"version\":1,\"mandatory_checks\":[\"required\"]}"),
         policy_sequence: 2,
         run_id: "run-1".into(),
         plan_id: "plan-1".into(),
@@ -260,4 +260,17 @@ fn stage_modes_and_location_are_bound_to_the_fixture_plan() {
             Decision::Indeterminate
         );
     }
+}
+
+#[test]
+fn signed_mandatory_inventory_cannot_be_replaced_by_plan() {
+    let (mut plan, mut inputs) = fixture();
+    plan.stages[0].checks = vec!["replacement".into()];
+    replace(&mut plan, &mut inputs[0], |r| {
+        r.checks[0].id = "replacement".into()
+    });
+    assert_eq!(
+        reconcile(&plan, &inputs).policy_decision,
+        Decision::Indeterminate
+    );
 }

@@ -160,6 +160,9 @@ pub fn reconcile(
             }
         }
     }
+    if policy.is_none_or(|p| p.mandatory_checks != expected_checks) {
+        bad_plan = true;
+    }
     if inputs.len() > MAX_CHECKS {
         bad_plan = true;
     }
