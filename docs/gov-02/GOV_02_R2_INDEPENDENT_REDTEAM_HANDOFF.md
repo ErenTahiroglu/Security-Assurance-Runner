@@ -1,0 +1,7 @@
+# GOV-02 R2 — independent review handoff
+
+Starting SHA `cfb64f5dc26a436f20144f36e4bd6a0a535ac749`. Candidate SHA and exact-SHA CI receipt are recorded in Issue #4; do not infer acceptance. Reproduce with `cargo fmt --all -- --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked`, `cargo build --locked`.
+
+Inspect `src/gitleaks_fixture.rs`, `tests/gitleaks_r2.rs`, [native contract](GOV_02_R2_NATIVE_FINDING_CONTRACT.md) and [execution readiness](GOV_02_R2_EXECUTION_READINESS.md). The first new regression was red due to the new API not existing; after implementation the tests passed locally. This is a compile-time red/green, not an execution of R1's nonexistent v2 API. R1 already syntactically accepted `[{}]`; it did not classify it usable.
+
+Review whether profile validation accepts misleading records, whether catalog substitution can be mistaken for authorization, whether duplicate claims or input strings leak through JSON/Debug/errors, and whether counter semantics suggest real coverage. Assess output and memory limits, `null` versus empty, path nonresolution and missing fingerprints. Challenge OS isolation assumptions, source-controlled ignore files, binary TOCTOU and incomplete-scan evidence. Actual scanner execution, binary provenance, provider authentication, owner policy trust and OS containment remain unavailable. No owner authorization for real execution is implied.

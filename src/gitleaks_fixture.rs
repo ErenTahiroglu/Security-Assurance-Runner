@@ -82,6 +82,40 @@ pub fn parse_gitleaks_fixture(input: &[u8]) -> Result<FixtureImportReceipt, Fixt
     if input.len() > MAX_INPUT_BYTES {
         return Err(FixtureImportError::TooLarge);
     }
+    let (collection, native) = parse_native(input)?;
+    let mut findings = Vec::with_capacity(native.len());
+    for f in native {
+        findings.push(FixtureFinding {
+            rule_id_present: !f.rule_id.is_empty(),
+            fingerprint_present: !f.fingerprint.is_empty(),
+            start_line: f.start_line,
+            end_line: f.end_line,
+            start_column: f.start_column,
+            end_column: f.end_column,
+        });
+    }
+    Ok(FixtureImportReceipt {
+        format: "gitleaks-json-v8.30.1-fixture",
+        collection,
+        findings,
+        test_only: true,
+        scanner_executed: false,
+        provider_authenticated: false,
+        tool_binary_verified: false,
+        coverage_verified: false,
+        policy_authority_verified: false,
+        operational_pass: false,
+        provenance: "UNVERIFIED",
+    })
+}
+
+fn parse_native(input: &[u8]) -> Result<(CollectionKind, Vec<NativeFinding>), FixtureImportError> {
+    if input.is_empty() {
+        return Err(FixtureImportError::MissingEvidence);
+    }
+    if input.len() > MAX_INPUT_BYTES {
+        return Err(FixtureImportError::TooLarge);
+    }
     let parsed: Option<Vec<NativeFinding>> =
         serde_json::from_slice(input).map_err(|_| FixtureImportError::InvalidFormat)?;
     let collection = if parsed.is_some() {
@@ -93,8 +127,7 @@ pub fn parse_gitleaks_fixture(input: &[u8]) -> Result<FixtureImportReceipt, Fixt
     if native.len() > MAX_FINDINGS {
         return Err(FixtureImportError::LimitExceeded);
     }
-    let mut findings = Vec::with_capacity(native.len());
-    for f in native {
+    for f in &native {
         if f.fragment.is_some() {
             return Err(FixtureImportError::UnsupportedFragment);
         }
@@ -122,26 +155,102 @@ pub fn parse_gitleaks_fixture(input: &[u8]) -> Result<FixtureImportReceipt, Fixt
         {
             return Err(FixtureImportError::LimitExceeded);
         }
-        findings.push(FixtureFinding {
-            rule_id_present: !f.rule_id.is_empty(),
-            fingerprint_present: !f.fingerprint.is_empty(),
-            start_line: f.start_line,
-            end_line: f.end_line,
-            start_column: f.start_column,
-            end_column: f.end_column,
-        });
     }
-    Ok(FixtureImportReceipt {
-        format: "gitleaks-json-v8.30.1-fixture",
+    Ok((collection, native))
+}
+
+/// Fixture-only interpretation. Catalog values are caller-declared, never trusted policy.
+/// Output uses catalog indexes, never untrusted report strings or catalog text.
+#[derive(Debug, Serialize)]
+pub struct FixtureInterpretationV2 {
+    pub schema: &'static str,
+    pub collection: CollectionKind,
+    pub parsed_elements: usize,
+    pub usable_fixture_findings: usize,
+    pub insufficient_fixture_findings: usize,
+    pub fixture_catalog_matches: usize,
+    pub unknown_fixture_rule_ids: Option<usize>,
+    pub matched_catalog_indexes: Vec<usize>,
+    pub duplicate_fingerprint_claims: usize,
+    pub missing_fingerprint_claims: usize,
+    pub catalog_is_caller_declared: bool,
+    pub test_only: bool,
+    pub native_report_authenticated: bool,
+    pub scanner_executed: bool,
+    pub coverage_verified: bool,
+    pub policy_authority_verified: bool,
+    pub operational_pass: bool,
+}
+
+pub fn interpret_gitleaks_fixture_v2(
+    input: &[u8],
+    catalog: Option<&[&str]>,
+) -> Result<FixtureInterpretationV2, FixtureImportError> {
+    if let Some(c) = catalog
+        && (c.len() > MAX_FINDINGS || c.iter().any(|s| s.is_empty() || s.len() > MAX_STRING_BYTES))
+    {
+        return Err(FixtureImportError::LimitExceeded);
+    }
+    let (collection, native) = parse_native(input)?;
+    let mut usable = 0;
+    let mut insufficient = 0;
+    let mut matches = Vec::new();
+    let mut unknown = 0;
+    let mut duplicate = 0;
+    let mut missing = 0;
+    for (index, f) in native.iter().enumerate() {
+        let coordinates_valid = f.start_line > 0
+            && f.end_line >= f.start_line
+            && f.start_column > 0
+            && f.end_column > 0
+            && (f.end_line != f.start_line || f.end_column >= f.start_column);
+        let valid = !f.rule_id.is_empty()
+            && !f.file.is_empty()
+            && !f.fingerprint.is_empty()
+            && coordinates_valid;
+        if valid {
+            usable += 1;
+        } else {
+            insufficient += 1;
+        }
+        if f.fingerprint.is_empty() {
+            missing += 1;
+        } else if native[..index]
+            .iter()
+            .any(|prior| prior.fingerprint == f.fingerprint)
+        {
+            duplicate += 1;
+        }
+        if let Some(c) = catalog {
+            if let Some(position) = c
+                .iter()
+                .position(|rule| *rule == f.rule_id && !f.rule_id.is_empty())
+            {
+                if valid {
+                    matches.push(position);
+                }
+            } else if !f.rule_id.is_empty() {
+                unknown += 1;
+            }
+        }
+    }
+    Ok(FixtureInterpretationV2 {
+        schema: "gitleaks-fixture-interpretation-v2",
         collection,
-        findings,
+        parsed_elements: native.len(),
+        usable_fixture_findings: usable,
+        insufficient_fixture_findings: insufficient,
+        fixture_catalog_matches: matches.len(),
+        unknown_fixture_rule_ids: catalog.map(|_| unknown),
+        matched_catalog_indexes: matches,
+        duplicate_fingerprint_claims: duplicate,
+        missing_fingerprint_claims: missing,
+        catalog_is_caller_declared: true,
         test_only: true,
+        native_report_authenticated: false,
         scanner_executed: false,
-        provider_authenticated: false,
-        tool_binary_verified: false,
         coverage_verified: false,
         policy_authority_verified: false,
         operational_pass: false,
-        provenance: "UNVERIFIED",
     })
 }
