@@ -72,6 +72,7 @@ pub struct SyntheticReceipt {
     pub binding: Binding,
     pub observed_stages: Vec<String>,
     pub missing_stages: Vec<String>,
+    pub missing_optional_stages: Vec<String>,
     pub invalid_stages: Vec<String>,
     pub artifact_digests: BTreeMap<String, String>,
     pub expected_checks: Vec<String>,
@@ -108,11 +109,78 @@ fn valid_binding(b: &Binding) -> bool {
         && identifier(&b.plan_id)
         && hex(&b.plan_digest, 64)
 }
+
+/// SHA-256 of a bounded canonical JSON array, version 1. Stage and check order
+/// are sorted; report digests and the self-declared plan digest are excluded.
+pub fn plan_intent_digest(plan: &SyntheticPlan) -> Result<String, &'static str> {
+    let b = &plan.binding;
+    if !valid_binding(b) || plan.stages.is_empty() || plan.stages.len() > MAX_CHECKS {
+        return Err("INVALID_PLAN");
+    }
+    let mut ids = BTreeSet::new();
+    let mut all_checks = BTreeSet::new();
+    let mut stages = Vec::new();
+    for s in &plan.stages {
+        if !identifier(&s.id)
+            || !ids.insert(&s.id)
+            || s.attempt == 0
+            || !["CI", "LOCAL", "HYBRID"].contains(&s.mode.as_str())
+            || !identifier(&s.location)
+            || !identifier(&s.artifact_id)
+            || s.category != "source"
+            || !identifier(&s.status_source)
+            || s.checks.len() > MAX_CHECKS
+            || (s.mandatory && s.checks.is_empty())
+        {
+            return Err("INVALID_PLAN");
+        }
+        let mut checks = s.checks.clone();
+        checks.sort();
+        for check in &checks {
+            if !identifier(check) || !all_checks.insert(check.clone()) {
+                return Err("INVALID_PLAN");
+            }
+        }
+        stages.push((
+            &s.id,
+            s.attempt,
+            &s.mode,
+            &s.location,
+            &s.artifact_id,
+            "application/json",
+            s.mandatory,
+            checks,
+            &s.category,
+            &s.status_source,
+        ));
+    }
+    stages.sort_by(|a, b| a.0.cmp(b.0));
+    let bytes = serde_json::to_vec(&(
+        "SAR_SYNTHETIC_PLAN_INTENT",
+        1u32,
+        &b.provider,
+        &b.repository_id,
+        &b.commit,
+        &b.policy_id,
+        &b.policy_digest,
+        b.policy_sequence,
+        &b.run_id,
+        &b.plan_id,
+        stages,
+    ))
+    .map_err(|_| "INVALID_PLAN")?;
+    if bytes.len() > MAX_INPUT {
+        return Err("INVALID_PLAN");
+    }
+    Ok(input_digest(&bytes))
+}
 /// Plan is a synthetic test fixture, not an authenticated policy or run authorization.
 pub fn reconcile(
     plan: &SyntheticPlan,
     inputs: &[StageInput],
     policy: Option<&SyntheticVerifiedPolicy>,
+    trusted_plan_digest: Option<&str>,
+    fixture_artifact_pins: Option<&BTreeMap<String, String>>,
 ) -> SyntheticReceipt {
     let mut observed = BTreeSet::new();
     let mut invalid = BTreeSet::new();
@@ -126,6 +194,13 @@ pub fn reconcile(
     let mut all_checks = BTreeSet::new();
     let mut bad_plan =
         !valid_binding(&plan.binding) || plan.stages.is_empty() || plan.stages.len() > MAX_CHECKS;
+    match (plan_intent_digest(plan), trusted_plan_digest) {
+        (Ok(computed), Some(expected))
+            if hex(expected, 64)
+                && computed == expected
+                && plan.binding.plan_digest == expected => {}
+        _ => bad_plan = true,
+    }
     match policy {
         Some(p)
             if p.statement.provider == plan.binding.provider
@@ -151,8 +226,12 @@ pub fn reconcile(
         {
             bad_plan = true;
         }
-        for check in &stage.checks {
-            if !identifier(check) || !all_checks.insert(check.clone()) {
+        for check in stage.checks.iter().take(MAX_CHECKS + 1) {
+            if !identifier(check) {
+                bad_plan = true;
+                continue;
+            }
+            if !all_checks.insert(check.clone()) {
                 bad_plan = true;
             }
             if stage.mandatory {
@@ -165,6 +244,48 @@ pub fn reconcile(
     }
     if inputs.len() > MAX_CHECKS {
         bad_plan = true;
+    }
+    if bad_plan {
+        let missing_stages = plan
+            .stages
+            .iter()
+            .take(MAX_CHECKS + 1)
+            .filter(|s| s.mandatory)
+            .map(|s| s.id.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let missing_optional_stages = plan
+            .stages
+            .iter()
+            .take(MAX_CHECKS + 1)
+            .filter(|s| !s.mandatory)
+            .map(|s| s.id.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let expected: Vec<String> = expected_checks.into_iter().collect();
+        return SyntheticReceipt {
+            schema_version: 1,
+            test_only: true,
+            verification: "SYNTHETIC_ONLY",
+            binding: plan.binding.clone(),
+            observed_stages: vec![],
+            missing_stages,
+            missing_optional_stages,
+            invalid_stages: vec!["INVALID_PLAN".into()],
+            artifact_digests: BTreeMap::new(),
+            expected_checks: expected.clone(),
+            observed_checks: vec![],
+            missing_checks: expected,
+            execution: Execution::Incomplete,
+            coverage: "INCOMPLETE",
+            policy_decision: Decision::Indeterminate,
+            limitations: vec![
+                "Synthetic fixtures only; no operational trust or scanner",
+                "Provider identity and host integrity are not authenticated",
+            ],
+        };
     }
     let mut counts = BTreeMap::new();
     for input in inputs.iter().take(MAX_CHECKS + 1) {
@@ -186,6 +307,10 @@ pub fn reconcile(
         }
         let digest = input_digest(&input.artifact);
         digests.insert(input.stage_id.clone(), digest.clone());
+        if fixture_artifact_pins.is_some_and(|pins| pins.get(&input.stage_id) != Some(&digest)) {
+            invalid.insert(input.stage_id.clone());
+            continue;
+        }
         let report: Report = match serde_json::from_slice(&input.artifact) {
             Ok(r) => r,
             Err(_) => {
@@ -244,6 +369,15 @@ pub fn reconcile(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
+    let missing_optional_stages = plan
+        .stages
+        .iter()
+        .take(MAX_CHECKS + 1)
+        .filter(|s| !s.mandatory && !complete.contains(&s.id))
+        .map(|s| s.id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
     if bad_plan {
         invalid.insert("INVALID_PLAN".into());
     }
@@ -259,6 +393,7 @@ pub fn reconcile(
         binding: plan.binding.clone(),
         observed_stages: observed.into_iter().collect(),
         missing_stages: missing,
+        missing_optional_stages,
         invalid_stages: invalid.into_iter().collect(),
         artifact_digests: digests,
         expected_checks: expected_checks.into_iter().collect(),

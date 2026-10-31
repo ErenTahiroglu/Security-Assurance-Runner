@@ -4,12 +4,24 @@ use security_assurance_runner::{
     evaluation::{Decision, Execution},
     reconcile::{
         Binding, CheckRecord, ExpectedStage, Report, StageInput, SyntheticPlan, SyntheticReceipt,
-        reconcile as reconcile_raw,
+        plan_intent_digest, reconcile as reconcile_raw,
     },
     trust::{POLICY_TYPE, SyntheticTrust, pae, verify_synthetic_policy},
 };
+use std::collections::BTreeMap;
+// Independently computed from the documented canonical JSON using Python hashlib.
+const TRUSTED_PLAN: &str = "39c44666f3c9c81e5fbdfe09f4d319992f8398e0d0bacff49148c7963097c08c";
 
 fn reconcile(plan: &SyntheticPlan, inputs: &[StageInput]) -> SyntheticReceipt {
+    reconcile_with_trust(plan, inputs, Some(TRUSTED_PLAN), None)
+}
+
+fn reconcile_with_trust(
+    plan: &SyntheticPlan,
+    inputs: &[StageInput],
+    trusted: Option<&str>,
+    pins: Option<&BTreeMap<String, String>>,
+) -> SyntheticReceipt {
     let key = SigningKey::from_bytes(&[7; 32]);
     let verification_key = key.verifying_key();
     let payload =
@@ -37,11 +49,11 @@ fn reconcile(plan: &SyntheticPlan, inputs: &[StageInput]) -> SyntheticReceipt {
         b"{\"version\":1,\"mandatory_checks\":[\"required\"]}",
     )
     .unwrap();
-    reconcile_raw(plan, inputs, Some(&verified))
+    reconcile_raw(plan, inputs, Some(&verified), trusted, pins)
 }
 
 fn fixture() -> (SyntheticPlan, Vec<StageInput>) {
-    let binding = Binding {
+    let mut binding = Binding {
         provider: "github".into(),
         repository_id: "123".into(),
         commit: "a".repeat(40),
@@ -52,6 +64,23 @@ fn fixture() -> (SyntheticPlan, Vec<StageInput>) {
         plan_id: "plan-1".into(),
         plan_digest: "c".repeat(64),
     };
+    let mut stage = ExpectedStage {
+        id: "s1".into(),
+        attempt: 1,
+        mode: "CI".into(),
+        location: "fixture".into(),
+        artifact_id: "report".into(),
+        artifact_digest: "0".repeat(64),
+        mandatory: true,
+        checks: vec!["required".into()],
+        category: "source".into(),
+        status_source: "fixture-app".into(),
+    };
+    binding.plan_digest = plan_intent_digest(&SyntheticPlan {
+        binding: binding.clone(),
+        stages: vec![stage.clone()],
+    })
+    .unwrap();
     let report = Report {
         version: 1,
         binding: binding.clone(),
@@ -69,18 +98,7 @@ fn fixture() -> (SyntheticPlan, Vec<StageInput>) {
         }],
     };
     let bytes = serde_json::to_vec(&report).unwrap();
-    let stage = ExpectedStage {
-        id: "s1".into(),
-        attempt: 1,
-        mode: "CI".into(),
-        location: "fixture".into(),
-        artifact_id: "report".into(),
-        artifact_digest: input_digest(&bytes),
-        mandatory: true,
-        checks: vec!["required".into()],
-        category: "source".into(),
-        status_source: "fixture-app".into(),
-    };
+    stage.artifact_digest = input_digest(&bytes);
     (
         SyntheticPlan {
             binding,
@@ -101,13 +119,14 @@ fn replace(plan: &mut SyntheticPlan, input: &mut StageInput, edit: impl FnOnce(&
 #[test]
 fn valid_synthetic_report_produces_only_labeled_fixture_pass() {
     let (plan, inputs) = fixture();
+    assert_eq!(plan.binding.plan_digest, TRUSTED_PLAN);
     let r = reconcile(&plan, &inputs);
     assert!(r.test_only);
     assert_eq!(r.policy_decision, Decision::Pass);
     assert_eq!(r.execution, Execution::Complete);
     assert_eq!(r.verification, "SYNTHETIC_ONLY");
     assert_eq!(
-        reconcile_raw(&plan, &inputs, None).policy_decision,
+        reconcile_raw(&plan, &inputs, None, Some(&plan.binding.plan_digest), None).policy_decision,
         Decision::Indeterminate
     );
 }
@@ -250,13 +269,22 @@ fn stage_modes_and_location_are_bound_to_the_fixture_plan() {
     for mode in ["LOCAL", "HYBRID"] {
         let (mut plan, mut inputs) = fixture();
         plan.stages[0].mode = mode.into();
-        replace(&mut plan, &mut inputs[0], |r| r.mode = mode.into());
-        assert_eq!(reconcile(&plan, &inputs).policy_decision, Decision::Pass);
+        plan.binding.plan_digest = plan_intent_digest(&plan).unwrap();
+        let trusted = plan.binding.plan_digest.clone();
+        let binding = plan.binding.clone();
+        replace(&mut plan, &mut inputs[0], |r| {
+            r.mode = mode.into();
+            r.binding = binding;
+        });
+        assert_eq!(
+            reconcile_with_trust(&plan, &inputs, Some(&trusted), None).policy_decision,
+            Decision::Pass
+        );
         replace(&mut plan, &mut inputs[0], |r| {
             r.location = "different".into()
         });
         assert_eq!(
-            reconcile(&plan, &inputs).policy_decision,
+            reconcile_with_trust(&plan, &inputs, Some(&trusted), None).policy_decision,
             Decision::Indeterminate
         );
     }
@@ -273,4 +301,102 @@ fn signed_mandatory_inventory_cannot_be_replaced_by_plan() {
         reconcile(&plan, &inputs).policy_decision,
         Decision::Indeterminate
     );
+}
+
+#[test]
+fn stale_plan_digest_cannot_authorize_stage_substitution() {
+    let (mut plan, mut inputs) = fixture();
+    plan.stages[0].id = "s2".into();
+    replace(&mut plan, &mut inputs[0], |r| r.stage_id = "s2".into());
+    inputs[0].stage_id = "s2".into();
+    assert_eq!(
+        reconcile(&plan, &inputs).policy_decision,
+        Decision::Indeterminate
+    );
+}
+
+#[test]
+fn plan_attempt_mode_and_recomputed_self_digest_need_independent_approval() {
+    for choice in 0..3 {
+        let (mut plan, mut inputs) = fixture();
+        let trusted = plan.binding.plan_digest.clone();
+        if choice == 0 {
+            plan.stages[0].attempt = 2;
+            replace(&mut plan, &mut inputs[0], |r| r.attempt = 2);
+        }
+        if choice == 1 {
+            plan.stages[0].mode = "LOCAL".into();
+            replace(&mut plan, &mut inputs[0], |r| r.mode = "LOCAL".into());
+        }
+        if choice == 2 {
+            plan.stages[0].id = "s2".into();
+            plan.binding.plan_digest = plan_intent_digest(&plan).unwrap();
+            let new_binding = plan.binding.clone();
+            replace(&mut plan, &mut inputs[0], |r| {
+                r.stage_id = "s2".into();
+                r.binding = new_binding;
+            });
+            inputs[0].stage_id = "s2".into();
+        }
+        assert_eq!(
+            reconcile_with_trust(&plan, &inputs, Some(&trusted), None).policy_decision,
+            Decision::Indeterminate
+        );
+    }
+}
+
+#[test]
+fn missing_plan_anchor_and_substituted_pinned_artifact_are_rejected() {
+    let (mut plan, mut inputs) = fixture();
+    let trusted = plan.binding.plan_digest.clone();
+    let missing_anchor = reconcile_with_trust(&plan, &inputs, None, None);
+    assert_eq!(missing_anchor.policy_decision, Decision::Indeterminate);
+    assert!(missing_anchor.artifact_digests.is_empty());
+    let pins = BTreeMap::from([("s1".to_string(), input_digest(&inputs[0].artifact))]);
+    assert_eq!(
+        reconcile_with_trust(&plan, &inputs, Some(&trusted), Some(&pins)).policy_decision,
+        Decision::Pass
+    );
+    replace(&mut plan, &mut inputs[0], |r| {
+        r.checks[0].blocking_finding = true
+    });
+    assert_eq!(
+        reconcile_with_trust(&plan, &inputs, Some(&trusted), Some(&pins)).policy_decision,
+        Decision::Indeterminate
+    );
+}
+
+#[test]
+fn missing_optional_stage_preserves_mandatory_scope_coverage() {
+    let (mut plan, mut inputs) = fixture();
+    let mut optional = plan.stages[0].clone();
+    optional.id = "optional".into();
+    optional.mandatory = false;
+    optional.checks = vec!["optional-check".into()];
+    plan.stages.push(optional);
+    plan.binding.plan_digest = plan_intent_digest(&plan).unwrap();
+    let trusted = plan.binding.plan_digest.clone();
+    let binding = plan.binding.clone();
+    replace(&mut plan, &mut inputs[0], |r| r.binding = binding);
+    let receipt = reconcile_with_trust(&plan, &inputs, Some(&trusted), None);
+    assert_eq!(receipt.policy_decision, Decision::Pass);
+    assert_eq!(receipt.coverage, "COMPLETE_SYNTHETIC_SCOPE");
+    assert_eq!(receipt.missing_optional_stages, vec!["optional"]);
+}
+
+#[test]
+fn canonical_intent_is_order_independent_and_excludes_report_digests() {
+    let (mut plan, _) = fixture();
+    let mut optional = plan.stages[0].clone();
+    optional.id = "optional".into();
+    optional.mandatory = false;
+    optional.checks = vec!["b".into(), "a".into()];
+    plan.stages.push(optional);
+    let original = plan_intent_digest(&plan).unwrap();
+    plan.stages.reverse();
+    plan.stages[0].checks.reverse();
+    plan.stages[0].artifact_digest = "f".repeat(64);
+    assert_eq!(plan_intent_digest(&plan).unwrap(), original);
+    plan.stages[0].attempt += 1;
+    assert_ne!(plan_intent_digest(&plan).unwrap(), original);
 }
