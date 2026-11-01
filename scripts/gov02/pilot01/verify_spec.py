@@ -32,7 +32,9 @@ def verify(spec, input_path, output_path, network):
         source,read_only=expected.pop(dst)
         if str(pathlib.Path(item.get("Source","")).resolve())!=source:
             raise ValueError("MOUNT_SOURCE_MISMATCH")
-        if item.get("ReadOnly") is not read_only:
+        # Docker may omit ReadOnly for the intended writable output bind. The
+        # input bind must still explicitly report true; omitted means false.
+        if item.get("ReadOnly", False) is not read_only:
             raise ValueError("MOUNT_READONLY_MISMATCH")
     if expected: raise ValueError("MOUNT_MISSING")
 
