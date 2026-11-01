@@ -37,6 +37,8 @@ def verify(spec, input_path, output_path, network):
 if __name__=="__main__":
     try: verify(*sys.argv[1:])
     except (IndexError,ValueError,KeyError,TypeError,OSError) as e:
-        print("PREFLIGHT_SPEC_FAILED:"+type(e).__name__,file=sys.stderr)
+        known={"COUNT","NETWORK","ROOTFS_OR_PRIVILEGE","USER","MEMORY_PIDS","CPU","CAPABILITIES","PRIVS","UNEXPECTED_BINDS","ENTRYPOINT","ENV","MOUNT_COUNT","MOUNT_TARGET","MOUNT_SCOPE","MOUNT_MISSING"}
+        reason=str(e) if isinstance(e,ValueError) and str(e) in known else type(e).__name__
+        print("PREFLIGHT_SPEC_FAILED:"+reason,file=sys.stderr)
         sys.exit(1)
     print("PREFLIGHT_SPEC_OK")
