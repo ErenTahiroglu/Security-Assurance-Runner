@@ -30,14 +30,16 @@ def verify(spec, input_path, output_path, network):
         dst=item.get("Target")
         if item.get("Type")!="bind" or dst not in expected: raise ValueError("MOUNT_TARGET")
         source,read_only=expected.pop(dst)
-        if item.get("Source")!=source or item.get("ReadOnly") is not read_only:
-            raise ValueError("MOUNT_SCOPE")
+        if str(pathlib.Path(item.get("Source","")).resolve())!=source:
+            raise ValueError("MOUNT_SOURCE_MISMATCH")
+        if item.get("ReadOnly") is not read_only:
+            raise ValueError("MOUNT_READONLY_MISMATCH")
     if expected: raise ValueError("MOUNT_MISSING")
 
 if __name__=="__main__":
     try: verify(*sys.argv[1:])
     except (IndexError,ValueError,KeyError,TypeError,OSError) as e:
-        known={"COUNT","NETWORK","ROOTFS_OR_PRIVILEGE","USER","MEMORY_PIDS","CPU","CAPABILITIES","PRIVS","UNEXPECTED_BINDS","ENTRYPOINT","ENV","MOUNT_COUNT","MOUNT_TARGET","MOUNT_SCOPE","MOUNT_MISSING"}
+        known={"COUNT","NETWORK","ROOTFS_OR_PRIVILEGE","USER","MEMORY_PIDS","CPU","CAPABILITIES","PRIVS","UNEXPECTED_BINDS","ENTRYPOINT","ENV","MOUNT_COUNT","MOUNT_TARGET","MOUNT_SCOPE","MOUNT_SOURCE_MISMATCH","MOUNT_READONLY_MISMATCH","MOUNT_MISSING"}
         reason=str(e) if isinstance(e,ValueError) and str(e) in known else type(e).__name__
         print("PREFLIGHT_SPEC_FAILED:"+reason,file=sys.stderr)
         sys.exit(1)
