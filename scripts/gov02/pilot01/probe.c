@@ -31,7 +31,7 @@ static int fs(void){
  if(fd>=0){close(fd);return fail("INPUT_WRITABLE");}
  fd=open("/rootfs_write_test",O_WRONLY|O_CREAT|O_EXCL,0600);
  if(fd>=0){close(fd);return fail("ROOTFS_WRITABLE");}
- fd=open("/output/receipt.txt",O_WRONLY|O_CREAT|O_EXCL,0600);
+ fd=open("/output/receipt.txt",O_WRONLY|O_CREAT|O_EXCL,0644);
  if(fd<0)return fail("OUTPUT_UNWRITABLE");
  const char msg[]="PREFLIGHT_FS_OK\n";
  ssize_t written=write(fd,msg,sizeof(msg)-1);close(fd);
