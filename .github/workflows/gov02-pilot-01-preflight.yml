@@ -1,0 +1,42 @@
+name: GOV-02 PILOT-01 Linux containment preflight (scanner disabled)
+on:
+  push:
+    branches: [development]
+    paths:
+      - '.github/workflows/gov02-pilot-01-preflight.yml'
+      - 'scripts/gov02/pilot01/**'
+permissions:
+  contents: read
+concurrency:
+  group: gov02-pilot-01-preflight-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  linux-preflight:
+    if: github.repository == 'ErenTahiroglu/Security-Assurance-Runner' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without retained credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify Linux x64 and exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(uname -m)" = x86_64
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "preflight_commit=$GITHUB_SHA"
+      - name: Validate preflight-only scripts (no scanner)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e scripts/gov02/pilot01/run-scanner.sh
+          bash -n scripts/gov02/pilot01/preflight.sh
+          python3 -m py_compile scripts/gov02/pilot01/verify_spec.py
+      - name: Run restricted local-only Docker probes (NO Gitleaks)
+        shell: bash
+        run: bash scripts/gov02/pilot01/preflight.sh
