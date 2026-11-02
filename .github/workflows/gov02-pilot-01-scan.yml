@@ -27,7 +27,7 @@ jobs:
           test "$RUNNER_OS" = Linux
           test "$RUNNER_ARCH" = X64
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD~2)" = 'ed808d001acc72a56308deb15b6a33be0d531d8c'
+          test "$(git rev-parse HEAD~2)" = 'c16d9facb01607e6ae33185569140b6f9fd70d8c'
           test "$(git log -1 --format=%s HEAD^)" = 'SAR-PILOT-01-ARM'
           test "$(git log -1 --format=%s)" = 'SAR-PILOT-01-AUTHORIZED-ONCE'
           test "$(git diff --name-only HEAD^ HEAD)" = 'docs/gov-02/PILOT_01_ONE_SHOT.marker'
