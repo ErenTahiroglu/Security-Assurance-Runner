@@ -28,7 +28,7 @@ def verify(spec, input_path, output_path, network, config_path=None, entrypoint=
     if config_path is not None:
         expected["/config"]=(str(pathlib.Path(config_path).resolve()),True)
     mounts=host.get("Mounts") or []
-    if len(mounts)!=2: raise ValueError("MOUNT_COUNT")
+    if len(mounts)!=len(expected): raise ValueError("MOUNT_COUNT")
     for item in mounts:
         dst=item.get("Target")
         if item.get("Type")!="bind" or dst not in expected: raise ValueError("MOUNT_TARGET")
