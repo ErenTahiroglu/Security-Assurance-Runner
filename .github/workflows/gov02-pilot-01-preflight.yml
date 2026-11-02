@@ -37,6 +37,9 @@ jobs:
           test ! -e scripts/gov02/pilot01/run-scanner.sh
           bash -n scripts/gov02/pilot01/preflight.sh
           python3 -m py_compile scripts/gov02/pilot01/verify_spec.py
+          bash -n scripts/gov02/pilot01/scan_once.sh
+          python3 -m py_compile scripts/gov02/pilot01/inspect_report.py
+          python3 -m unittest discover -s scripts/gov02/pilot01 -p 'test_*.py' -q
       - name: Run restricted local-only Docker probes (NO Gitleaks)
         shell: bash
         run: bash scripts/gov02/pilot01/preflight.sh
