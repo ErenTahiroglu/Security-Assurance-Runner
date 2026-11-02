@@ -6,7 +6,7 @@ The GitHub release metadata advertises a checksums file and these assets; archiv
 
 | platform | official asset | GitHub-reported SHA-256 of archive |
 |---|---|---|
-| Linux x64 | [linux_x64](https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz) | `551f6fc83ea457d62a0b98237cbad105af8d557003051f41f3e7ca7b3f2470eb` |
+| Linux x64 | [linux_x64](https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz) | `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb` |
 | Windows x64 | [windows_x64](https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip) | `d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332af4e` |
 | macOS ARM64 | [darwin_arm64](https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz) | `b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5` |
 

@@ -42,7 +42,7 @@ chmod 0644 "$WORK"/input/* "$WORK"/config/*
 chmod 0777 "$WORK/output" # Disposable container-only, never the checkout.
 echo "PILOT_CORPUS_SYNTHETIC_ONLY"
 sha256sum "$WORK"/input/* "$WORK"/config/* >"$WORK/controlled-input-digests.private"
-EXPECTED_ARCHIVE_SHA="551f6fc83ea457d62a0b98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+EXPECTED_ARCHIVE_SHA="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
 URL="https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
 curl --fail --location --silent --show-error --max-time 90 --retry 0 -o "$WORK/gitleaks.tar.gz" "$URL"
 echo "$EXPECTED_ARCHIVE_SHA  $WORK/gitleaks.tar.gz" | sha256sum --check --status || { echo "BLOCKED:ARCHIVE_DIGEST_MISMATCH" >&2;exit 1; }
