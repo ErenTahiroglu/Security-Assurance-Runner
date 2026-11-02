@@ -4,7 +4,7 @@ import json
 import pathlib
 import sys
 
-def verify(spec, input_path, output_path, network):
+def verify(spec, input_path, output_path, network, config_path=None, entrypoint="/probe", *expected_command):
     records=json.loads(pathlib.Path(spec).read_text(encoding="utf-8"))
     if len(records)!=1: raise ValueError("COUNT")
     cfg=records[0]["Config"]
@@ -19,11 +19,14 @@ def verify(spec, input_path, output_path, network):
     if not any(s.startswith("no-new-privileges") for s in (host.get("SecurityOpt") or [])):
         raise ValueError("PRIVS")
     if host.get("Binds"): raise ValueError("UNEXPECTED_BINDS")
-    if cfg.get("Entrypoint")!=["/probe"]: raise ValueError("ENTRYPOINT")
+    if cfg.get("Entrypoint")!=[entrypoint]: raise ValueError("ENTRYPOINT")
+    if expected_command and cfg.get("Cmd")!=list(expected_command): raise ValueError("CMD")
     if any(v.startswith(("GITHUB_","AWS_","AZURE_","GOOGLE_","GH_")) for v in cfg.get("Env") or []):
         raise ValueError("ENV")
     expected={"/input":(str(pathlib.Path(input_path).resolve()),True),
               "/output":(str(pathlib.Path(output_path).resolve()),False)}
+    if config_path is not None:
+        expected["/config"]=(str(pathlib.Path(config_path).resolve()),True)
     mounts=host.get("Mounts") or []
     if len(mounts)!=2: raise ValueError("MOUNT_COUNT")
     for item in mounts:
@@ -41,7 +44,7 @@ def verify(spec, input_path, output_path, network):
 if __name__=="__main__":
     try: verify(*sys.argv[1:])
     except (IndexError,ValueError,KeyError,TypeError,OSError) as e:
-        known={"COUNT","NETWORK","ROOTFS_OR_PRIVILEGE","USER","MEMORY_PIDS","CPU","CAPABILITIES","PRIVS","UNEXPECTED_BINDS","ENTRYPOINT","ENV","MOUNT_COUNT","MOUNT_TARGET","MOUNT_SCOPE","MOUNT_SOURCE_MISMATCH","MOUNT_READONLY_MISMATCH","MOUNT_MISSING"}
+        known={"COUNT","NETWORK","ROOTFS_OR_PRIVILEGE","USER","MEMORY_PIDS","CPU","CAPABILITIES","PRIVS","UNEXPECTED_BINDS","ENTRYPOINT","ENV","MOUNT_COUNT","MOUNT_TARGET","MOUNT_SCOPE","MOUNT_SOURCE_MISMATCH","MOUNT_READONLY_MISMATCH","MOUNT_MISSING","CMD"}
         reason=str(e) if isinstance(e,ValueError) and str(e) in known else type(e).__name__
         print("PREFLIGHT_SPEC_FAILED:"+reason,file=sys.stderr)
         sys.exit(1)
