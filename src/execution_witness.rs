@@ -110,6 +110,7 @@ pub struct TestReceiptConsumer {
 
 impl TestReceiptConsumer {
     /// Only a same-instance prelaunch replay check; not durable.
+    #[cfg(target_os = "linux")]
     pub(crate) fn contains_binding(&self, b: &Binding) -> bool {
         self.consumed.contains(&(
             b.repository_id.clone(),
