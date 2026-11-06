@@ -191,9 +191,15 @@ pub struct VerifiedTestPlan {
 }
 
 impl VerifiedTestPlan {
-    pub fn binding(&self) -> &Binding { &self.statement.binding }
-    pub fn scope(&self) -> &[String] { &self.statement.scope }
-    pub fn rules(&self) -> &[String] { &self.statement.rules }
+    pub fn binding(&self) -> &Binding {
+        &self.statement.binding
+    }
+    pub fn scope(&self) -> &[String] {
+        &self.statement.scope
+    }
+    pub fn rules(&self) -> &[String] {
+        &self.statement.rules
+    }
 }
 
 /// Validate a purpose-bound plan before any test process is considered for execution.
