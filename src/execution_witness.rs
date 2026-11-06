@@ -109,6 +109,15 @@ pub struct TestReceiptConsumer {
 }
 
 impl TestReceiptConsumer {
+    /// Only a same-instance prelaunch replay check; not durable.
+    pub(crate) fn contains_binding(&self, b: &Binding) -> bool {
+        self.consumed.contains(&(
+            b.repository_id.clone(),
+            b.run_id.clone(),
+            b.stage_id.clone(),
+            b.attempt,
+        ))
+    }
     pub fn verify_and_consume(
         &mut self,
         ctx: &TestContext<'_>,
@@ -179,6 +188,12 @@ fn valid_binding(b: &Binding) -> bool {
 /// An authenticated fixture statement, never an operational authorization.
 pub struct VerifiedTestPlan {
     statement: PlanStatement,
+}
+
+impl VerifiedTestPlan {
+    pub fn binding(&self) -> &Binding { &self.statement.binding }
+    pub fn scope(&self) -> &[String] { &self.statement.scope }
+    pub fn rules(&self) -> &[String] { &self.statement.rules }
 }
 
 /// Validate a purpose-bound plan before any test process is considered for execution.

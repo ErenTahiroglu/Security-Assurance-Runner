@@ -10,6 +10,9 @@ on:
       - 'src/execution_witness.rs'
       - 'src/gitleaks_fixture.rs'
       - 'tests/execution_witness.rs'
+      - 'src/inert_pipeline.rs'
+      - 'tests/pipeline_inert_linux.rs'
+      - 'scripts/gov02/pipeline01/**'
 permissions:
   contents: read
 concurrency:
@@ -45,6 +48,9 @@ jobs:
           bash -n scripts/gov02/pilot01/scan_once.sh
           python3 -m py_compile scripts/gov02/pilot01/inspect_report.py
           python3 -m unittest discover -s scripts/gov02/pilot01 -p 'test_*.py' -q
+      - name: Test actual isolated inert Docker helper through Rust coordinator (NO Gitleaks)
+        shell: bash
+        run: cargo test --locked --test pipeline_inert_linux -- --ignored --test-threads=1
       - name: Run restricted local-only Docker probes (NO Gitleaks)
         shell: bash
         run: bash scripts/gov02/pilot01/preflight.sh
