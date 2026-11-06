@@ -1,6 +1,6 @@
 # GOV-02 — proposed evidence and coverage contract
 
-**DESIGN ONLY; no parser or real evidence verification implemented.** A scanner result is an untrusted tool claim, not a confirmed exploit or compliance certification. GOV-01's synthetic receipt and digest comparison are not operational provenance.
+**DESIGN plus bounded offline adapter:** [ADAPTER-01](GOV_02_ADAPTER_01_IMPLEMENTATION.md) implements native-subset parsing and caller-claim consistency checks; real evidence authentication and operational authority are not implemented. A scanner result is an untrusted tool claim, not a confirmed exploit or compliance certification. GOV-01's synthetic receipt and digest comparison are not operational provenance.
 
 ## Native and normalized records
 

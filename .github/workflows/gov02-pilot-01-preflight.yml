@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/gov02-pilot-01-preflight.yml'
       - 'scripts/gov02/pilot01/**'
+      - 'src/gitleaks_adapter.rs'
+      - 'tests/gitleaks_adapter.rs'
 permissions:
   contents: read
 concurrency:
