@@ -359,11 +359,14 @@ impl InertCoordinator {
             config.display()
         );
         let out_mount = format!("type=bind,source={},target=/output", output.display());
+        // Install the cleanup guard BEFORE create: even a failed/timed-out Docker CLI
+        // can have created a named container.
+        let container = ContainerGuard { name: name.clone() };
         let create = docker(
             &[
                 "create",
                 "--name",
-                &name,
+                &container.name,
                 "--network",
                 "none",
                 "--read-only",
@@ -395,7 +398,6 @@ impl InertCoordinator {
         if create != 0 {
             return Err(PipelineRefusal::HelperUnavailable);
         }
-        let container = ContainerGuard { name };
         let inspected = docker_inspect(&container.name, &self.workspace.root.join("inspect.json"))?;
         if !verify_spec(&inspected, &self.workspace.root, &container.name, argv) {
             return Err(PipelineRefusal::IsolationNotVerified);
@@ -412,8 +414,7 @@ impl InertCoordinator {
         {
             return Err(PipelineRefusal::UnexpectedExit);
         }
-        let f = File::open(output.join("report.json"))
-            .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?;
+        // Refuse an output symlink before opening any report bytes.
         if !fs::symlink_metadata(output.join("report.json"))
             .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?
             .file_type()
@@ -421,6 +422,8 @@ impl InertCoordinator {
         {
             return Err(PipelineRefusal::InvalidOrUnboundedOutput);
         }
+        let f = File::open(output.join("report.json"))
+            .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?;
         let mut bytes = Vec::new();
         f.take(MAX_INPUT_BYTES as u64 + 1)
             .read_to_end(&mut bytes)
