@@ -33,12 +33,14 @@ def inspect_bytes(data):
         raise ValueError("WRONG_RULE")
     if item.get("File") not in ALLOWED_FILE_NAMES:
         raise ValueError("UNEXPECTED_FILE")
-    if type(item.get("StartLine")) is not int or item["StartLine"]!=1:
+    if any(type(item.get(key)) is not int or item[key]!=expected for key,expected in
+           (("StartLine",1),("EndLine",1),("StartColumn",1),("EndColumn",23))):
         raise ValueError("INVALID_LOCATION")
-    if "Secret" not in item or not isinstance(item["Secret"],str):
-        raise ValueError("MISSING_SECRET_FIELD")
-    if "Match" not in item or not isinstance(item["Match"],str):
-        raise ValueError("MISSING_MATCH_FIELD")
+    if item.get("Secret")!="REDACTED" or item.get("Match")!="REDACTED":
+        raise ValueError("INVALID_REDACTION")
+    fingerprint=item.get("Fingerprint")
+    if item.get("Commit", "") != "" or fingerprint != f"{item['File']}:{EXPECTED_RULE}:1":
+        raise ValueError("INVALID_FINGERPRINT")
     return {"status":"EXPECTED_INERT_FINDING_OBSERVED","synthetic_only":True,
             "native_report_authenticated":False,"coverage_verified":False,
             "operational_pass":False,"findings":1}

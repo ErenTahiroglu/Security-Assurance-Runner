@@ -1,6 +1,6 @@
 # GOV-02 PILOT-01 — Linux x64 real Gitleaks execution report
 
-**Author classification:** `GOV_02_PILOT_01_PASS_READY_FOR_INDEPENDENT_REDTEAM` for a single **synthetic-only** scanner invocation; independent source/security review is NOT yet accepted. Report assembled 2026-11-02 from direct GitHub Actions job logs and immutable Git SHAs.
+**Historical author classification:** `GOV_02_PILOT_01_PASS_READY_FOR_INDEPENDENT_REDTEAM` for the synthetic-only invocation. The later [independent review](https://github.com/ErenTahiroglu/Security-Assurance-Runner/issues/4#issuecomment-6638728225) requested changes to the evidence oracle; historical execution itself was observed. The corrected synthetic oracle requires independent review.
 
 ## Exact immutable records
 
@@ -45,6 +45,10 @@ The successful job recorded `PILOT_SCANNER_CONTAINER_SPEC_VERIFIED`, followed by
 `{"coverage_verified":false,"findings":1,"native_report_authenticated":false,"operational_pass":false,"status":"EXPECTED_INERT_FINDING_OBSERVED","synthetic_only":true}`.
 
 Raw report digest in the disposable runner: `6ed6107768b779cca7d3eb32789240d2b689bc11a68dd1deca43d591310f1ce4`. The strict inspector requires a JSON array with exactly one finding, the original approved rule, the positive file and line 1; no finding for the negative file. It rejects duplicates, malformed/missing/null/oversized reports, wrong rule/file and unsupported missing sensitive native fields. Native report/stderr were not logged or uploaded; only sanitized booleans/count, executable and report digests were printed. The observed report digest is **not** separately authenticated evidence of real-world scanner completeness.
+
+The original inspector verified only the presence and string types of Secret and Match. It would accept an empty or unrelated pair. The historical raw report was deleted and was not published; the new stricter oracle cannot be applied retrospectively, and its synthetic tests cannot reconstruct or prove the original native fields. Historical process execution was observed, and its report passed the **original weaker inspector** only.
+
+The corrected selected-fixture oracle requires Secret and Match both exactly `REDACTED`; line 1, columns 1 through 23; empty commit; and fingerprint derived from the accepted file, rule and line. The [v8.30.1 redaction source](https://github.com/gitleaks/gitleaks/blob/v8.30.1/report/finding.go) sets Secret to `REDACTED` and replaces its previous value in Match. The fixed single regex contains no capture group, so the expected original full match and secret coincide. The [producer's AddFinding](https://github.com/gitleaks/gitleaks/blob/v8.30.1/detect/detect.go) constructs the no-commit fingerprint from file, rule and start line. These criteria are specific to this fixture, not universal Gitleaks requirements. A syntactically fabricated match still does not authenticate scanner execution or coverage.
 
 The scanner was invoked **once**; earlier authorized-workflow attempts were **refused before executable invocation**:
 - [41480656932 attempt 1](https://github.com/ErenTahiroglu/Security-Assurance-Runner/actions/runs/41480656932): preflight passed, but archive hash validation stopped because the formerly recorded expected digest mistakenly contained `...d62a0b982...` instead of correct `...d62a0d982...`.

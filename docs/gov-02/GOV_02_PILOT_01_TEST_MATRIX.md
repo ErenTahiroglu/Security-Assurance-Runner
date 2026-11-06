@@ -1,5 +1,7 @@
 # GOV-02 PILOT-01 — evidence and negative-test matrix
 
+**Correction under independent review:** the original native report is unavailable; the historical report row below describes the original weaker oracle, not retrospective verification under the corrected oracle. The corrected inspector requires exact `REDACTED` values, fixture-specific location and no-commit fingerprint consistency. Synthetic negative tests cover empty, unrelated and inconsistent secret/match values, missing fields, invalid coordinates, wrong rule/file, duplicate keys/findings, null, missing, truncated and oversized input, and output redaction. The arming-tree test is synthetic and does not reactivate the removed scanner workflow.
+
 | Check | Execution evidence | Result / limit |
 |---|---|---|
 | Source/run chain and one-shot trigger | [41482929656](https://github.com/ErenTahiroglu/Security-Assurance-Runner/actions/runs/41482929656) job 125405680860, exact trigger commit `429e08f182c7d01e2a158968cf963817b09cb0f1` | EXECUTED / verified; Git actor+marker are selectors, not authenticated owner signature |
