@@ -386,84 +386,86 @@ impl InertCoordinator {
             created: false,
         };
         let result = (|| -> Result<Vec<u8>, PipelineRefusal> {
-        let create = docker(
-            &[
-                "create",
-                "--name",
-                &container.name,
-                "--network",
-                "none",
-                "--read-only",
-                "--user",
-                "65532:65532",
-                "--cap-drop",
-                "ALL",
-                "--security-opt",
-                "no-new-privileges:true",
-                "--memory",
-                "128m",
-                "--memory-swap",
-                "128m",
-                "--cpus",
-                "0.5",
-                "--pids-limit",
-                "32",
-                "--mount",
-                &in_mount,
-                "--mount",
-                &conf_mount,
-                "--mount",
-                &out_mount,
-                &self.workspace.image,
-                argv,
-            ],
-            Duration::from_secs(12),
-        )?;
-        if create != 0 {
-            return Err(PipelineRefusal::HelperUnavailable);
-        }
-        container.created = true;
-        let inspected = docker_inspect(&container.name, &self.workspace.root.join("inspect.json"))?;
-        if !verify_spec(&inspected, &self.workspace.root, &container.name, argv) {
-            return Err(PipelineRefusal::IsolationNotVerified);
-        }
-        let status = docker(&["start", "-a", &container.name], timeout)?;
-        // Docker start -a may propagate the container exit code or return 0.
-        let ended = docker_inspect(&container.name, &self.workspace.root.join("finished.json"))?;
-        let exit = ended["State"]["ExitCode"].as_i64();
-        if ended["State"]["Running"].as_bool() != Some(false)
-            || ended["State"]["OOMKilled"].as_bool() != Some(false)
-            || ended["State"]["Error"].as_str() != Some("")
-            || exit != Some(23)
-            || !(status == 0 || status == 23)
-        {
-            return Err(PipelineRefusal::UnexpectedExit);
-        }
-        // The signature was verified before launch. Bind its declared process
-        // outcome to Docker's observed termination instead of trusting claims.
-        let signed: WitnessStatement =
-            serde_json::from_slice(witness_bytes).map_err(|_| PipelineRefusal::WitnessExitMismatch)?;
-        if signed.exit_code != Some(23) || signed.exit_code.map(i64::from) != exit {
-            return Err(PipelineRefusal::WitnessExitMismatch);
-        }
-        // Refuse an output symlink before opening any report bytes.
-        if !fs::symlink_metadata(output.join("report.json"))
-            .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?
-            .file_type()
-            .is_file()
-        {
-            return Err(PipelineRefusal::InvalidOrUnboundedOutput);
-        }
-        let f = File::open(output.join("report.json"))
-            .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?;
-        let mut bytes = Vec::new();
-        f.take(MAX_INPUT_BYTES as u64 + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?;
-        if bytes != TEMPLATE {
-            return Err(PipelineRefusal::InvalidOrUnboundedOutput);
-        }
-        Ok(bytes)
+            let create = docker(
+                &[
+                    "create",
+                    "--name",
+                    &container.name,
+                    "--network",
+                    "none",
+                    "--read-only",
+                    "--user",
+                    "65532:65532",
+                    "--cap-drop",
+                    "ALL",
+                    "--security-opt",
+                    "no-new-privileges:true",
+                    "--memory",
+                    "128m",
+                    "--memory-swap",
+                    "128m",
+                    "--cpus",
+                    "0.5",
+                    "--pids-limit",
+                    "32",
+                    "--mount",
+                    &in_mount,
+                    "--mount",
+                    &conf_mount,
+                    "--mount",
+                    &out_mount,
+                    &self.workspace.image,
+                    argv,
+                ],
+                Duration::from_secs(12),
+            )?;
+            if create != 0 {
+                return Err(PipelineRefusal::HelperUnavailable);
+            }
+            container.created = true;
+            let inspected =
+                docker_inspect(&container.name, &self.workspace.root.join("inspect.json"))?;
+            if !verify_spec(&inspected, &self.workspace.root, &container.name, argv) {
+                return Err(PipelineRefusal::IsolationNotVerified);
+            }
+            let status = docker(&["start", "-a", &container.name], timeout)?;
+            // Docker start -a may propagate the container exit code or return 0.
+            let ended =
+                docker_inspect(&container.name, &self.workspace.root.join("finished.json"))?;
+            let exit = ended["State"]["ExitCode"].as_i64();
+            if ended["State"]["Running"].as_bool() != Some(false)
+                || ended["State"]["OOMKilled"].as_bool() != Some(false)
+                || ended["State"]["Error"].as_str() != Some("")
+                || exit != Some(23)
+                || !(status == 0 || status == 23)
+            {
+                return Err(PipelineRefusal::UnexpectedExit);
+            }
+            // The signature was verified before launch. Bind its declared process
+            // outcome to Docker's observed termination instead of trusting claims.
+            let signed: WitnessStatement = serde_json::from_slice(witness_bytes)
+                .map_err(|_| PipelineRefusal::WitnessExitMismatch)?;
+            if signed.exit_code != Some(23) || signed.exit_code.map(i64::from) != exit {
+                return Err(PipelineRefusal::WitnessExitMismatch);
+            }
+            // Refuse an output symlink before opening any report bytes.
+            if !fs::symlink_metadata(output.join("report.json"))
+                .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?
+                .file_type()
+                .is_file()
+            {
+                return Err(PipelineRefusal::InvalidOrUnboundedOutput);
+            }
+            let f = File::open(output.join("report.json"))
+                .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?;
+            let mut bytes = Vec::new();
+            f.take(MAX_INPUT_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| PipelineRefusal::InvalidOrUnboundedOutput)?;
+            if bytes != TEMPLATE {
+                return Err(PipelineRefusal::InvalidOrUnboundedOutput);
+            }
+            Ok(bytes)
         })();
         // Cleanup runs for EVERY post-guard error, including create/inspect,
         // timeout, unexpected exit, malformed output and witness disagreement.

@@ -151,8 +151,7 @@ fn isolated_inert_helper_end_to_end_and_fail_closed_cases() {
     // Independent observed exit 23 must reject a separately signed, but wrong,
     // exit_code=1 witness. This is intentionally a FULL Docker execution test.
     let mut wrong_exit = fixture(&runner, &owner, &observer, 10, None, None);
-    let mut wrong_value: serde_json::Value =
-        serde_json::from_slice(&wrong_exit.witness).unwrap();
+    let mut wrong_value: serde_json::Value = serde_json::from_slice(&wrong_exit.witness).unwrap();
     wrong_value["exit_code"] = json!(1);
     wrong_exit.witness = serde_json::to_vec(&wrong_value).unwrap();
     wrong_exit.witness_sig = observer
@@ -160,7 +159,13 @@ fn isolated_inert_helper_end_to_end_and_fail_closed_cases() {
         .to_bytes();
     let wrong_exit_ctx = context(&ok, &wv, &wrong_exit.pin);
     assert!(matches!(
-        run(&mut runner, &wrong_exit_ctx, &wrong_exit, TestMode::Normal, max),
+        run(
+            &mut runner,
+            &wrong_exit_ctx,
+            &wrong_exit,
+            TestMode::Normal,
+            max
+        ),
         Err(PipelineRefusal::WitnessExitMismatch)
     ));
     gone(&runner);
