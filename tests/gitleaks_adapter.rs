@@ -39,6 +39,7 @@ fn claim<'a>(hash: &'a str, size: usize) -> ExecutionClaim<'a> {
         report_digest: Some(hash),
         report_size: Some(size),
         errors_or_skips: false,
+        timed_out: false,
     }
 }
 fn finding() -> Vec<u8> {
@@ -103,6 +104,7 @@ fn mismatches_and_partial_scans_fail_closed() {
     c.execution = Execution::Incomplete;
     c.exit_code = Some(1);
     c.errors_or_skips = true;
+    c.timed_out = true;
     let r = assess(Some(&data), Some(&plan()), Some(&c));
     for reason in [
         "SOURCE_OR_INPUT_MISMATCH",
@@ -112,6 +114,7 @@ fn mismatches_and_partial_scans_fail_closed() {
         "EXECUTION_NOT_COMPLETE",
         "NONZERO_EXIT_UNRESOLVED",
         "ERRORS_OR_SKIPPED_SCOPE",
+        "TIMEOUT_CLAIM",
     ] {
         assert!(r.inconsistencies.contains(&reason));
     }

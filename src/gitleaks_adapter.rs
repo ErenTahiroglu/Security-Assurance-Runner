@@ -40,6 +40,7 @@ pub struct ExecutionClaim<'a> {
     pub report_digest: Option<&'a str>,
     pub report_size: Option<usize>,
     pub errors_or_skips: bool,
+    pub timed_out: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -63,6 +64,7 @@ pub struct AdapterReceipt {
     pub unknown_rule_claims: Option<usize>,
     pub claimed_execution: Option<Execution>,
     pub claimed_exit: &'static str,
+    pub claimed_exit_code: Option<i32>,
     pub inconsistencies: Vec<&'static str>,
     pub policy_decision: Decision,
     pub scanner_identity_verified: bool,
@@ -121,6 +123,7 @@ pub fn assess(
             Some(0) => "ZERO",
             Some(_) => "NONZERO_AMBIGUOUS",
         },
+        claimed_exit_code: claim.and_then(|c| c.exit_code),
         inconsistencies: Vec::new(),
         policy_decision: Decision::Indeterminate,
         scanner_identity_verified: false,
@@ -190,6 +193,9 @@ pub fn assess(
         }
         if c.errors_or_skips {
             r.inconsistencies.push("ERRORS_OR_SKIPPED_SCOPE");
+        }
+        if c.timed_out {
+            r.inconsistencies.push("TIMEOUT_CLAIM");
         }
         if !c.started {
             r.inconsistencies.push("PROCESS_NOT_STARTED_CLAIM");
