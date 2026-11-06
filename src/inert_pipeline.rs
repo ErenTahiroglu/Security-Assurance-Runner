@@ -3,8 +3,8 @@
 use crate::contract::input_digest;
 use crate::evaluation::Decision;
 use crate::execution_witness::{
-    Refusal, TestContext, TestReceiptConsumer, TestWitnessReceipt, verify_test_execution,
-    verify_test_plan,
+    Refusal, TestContext, TestReceiptConsumer, TestWitnessReceipt, WitnessStatement,
+    verify_test_execution, verify_test_plan,
 };
 use crate::gitleaks_fixture::MAX_INPUT_BYTES;
 use serde::Serialize;
@@ -33,6 +33,10 @@ pub enum TestMode {
     Failure,
     Timeout,
     Cancelled,
+    /// Test-only simulated removal-command failure after a successful helper exit.
+    CleanupFailure,
+    /// Test-only simulated removal-command failure on an early helper error.
+    ErrorCleanupFailure,
 }
 impl TestMode {
     fn command(self) -> Option<&'static str> {
@@ -43,6 +47,8 @@ impl TestMode {
             Self::Failure => Some("fail"),
             Self::Timeout => Some("sleep"),
             Self::Cancelled => None,
+            Self::CleanupFailure => Some("copy"),
+            Self::ErrorCleanupFailure => Some("fail"),
         }
     }
 }
@@ -57,6 +63,7 @@ pub enum PipelineRefusal {
     IsolationNotVerified,
     Timeout,
     UnexpectedExit,
+    WitnessExitMismatch,
     InvalidOrUnboundedOutput,
     CleanupFailed,
     Receipt(Refusal),
@@ -195,16 +202,29 @@ impl Drop for Workspace {
 }
 struct ContainerGuard {
     name: String,
+    created: bool,
 }
 impl ContainerGuard {
-    fn finish(self) -> Result<(), PipelineRefusal> {
-        let removed = docker(&["rm", "-f", &self.name], Duration::from_secs(8))? == 0;
-        let gone = docker(&["inspect", &self.name], Duration::from_secs(8))? != 0;
-        if removed && gone {
-            Ok(())
+    /// Check cleanup even after an execution failure. A deliberately injected
+    /// failure simulates a failed removal command; recovery is best-effort and
+    /// NEVER converts the failure into a successful execution receipt.
+    fn finish(self, inject_removal_failure: bool) -> Result<(), PipelineRefusal> {
+        let removed = if inject_removal_failure {
+            Ok(17) // Inert injected docker-rm failure; no shell or real scanner.
         } else {
-            Err(PipelineRefusal::CleanupFailed)
+            docker(&["rm", "-f", &self.name], Duration::from_secs(8))
+        };
+        let inspect = docker(&["inspect", &self.name], Duration::from_secs(8));
+        let daemon = docker(&["ps", "-q"], Duration::from_secs(8));
+        let gone = inspect == Ok(1) && daemon == Ok(0);
+        let complete = gone && (!self.created || removed == Ok(0));
+        if !complete || inject_removal_failure {
+            // Recover an intentionally failed or genuine failed first removal.
+            // A cleanup failure remains explicitly observable regardless of retry.
+            let _ = docker(&["rm", "-f", &self.name], Duration::from_secs(8));
+            return Err(PipelineRefusal::CleanupFailed);
         }
+        Ok(())
     }
 }
 impl Drop for ContainerGuard {
@@ -361,7 +381,11 @@ impl InertCoordinator {
         let out_mount = format!("type=bind,source={},target=/output", output.display());
         // Install the cleanup guard BEFORE create: even a failed/timed-out Docker CLI
         // can have created a named container.
-        let container = ContainerGuard { name: name.clone() };
+        let mut container = ContainerGuard {
+            name: name.clone(),
+            created: false,
+        };
+        let result = (|| -> Result<Vec<u8>, PipelineRefusal> {
         let create = docker(
             &[
                 "create",
@@ -398,6 +422,7 @@ impl InertCoordinator {
         if create != 0 {
             return Err(PipelineRefusal::HelperUnavailable);
         }
+        container.created = true;
         let inspected = docker_inspect(&container.name, &self.workspace.root.join("inspect.json"))?;
         if !verify_spec(&inspected, &self.workspace.root, &container.name, argv) {
             return Err(PipelineRefusal::IsolationNotVerified);
@@ -413,6 +438,13 @@ impl InertCoordinator {
             || !(status == 0 || status == 23)
         {
             return Err(PipelineRefusal::UnexpectedExit);
+        }
+        // The signature was verified before launch. Bind its declared process
+        // outcome to Docker's observed termination instead of trusting claims.
+        let signed: WitnessStatement =
+            serde_json::from_slice(witness_bytes).map_err(|_| PipelineRefusal::WitnessExitMismatch)?;
+        if signed.exit_code != Some(23) || signed.exit_code.map(i64::from) != exit {
+            return Err(PipelineRefusal::WitnessExitMismatch);
         }
         // Refuse an output symlink before opening any report bytes.
         if !fs::symlink_metadata(output.join("report.json"))
@@ -431,8 +463,20 @@ impl InertCoordinator {
         if bytes != TEMPLATE {
             return Err(PipelineRefusal::InvalidOrUnboundedOutput);
         }
+        Ok(bytes)
+        })();
+        // Cleanup runs for EVERY post-guard error, including create/inspect,
+        // timeout, unexpected exit, malformed output and witness disagreement.
+        let injected_cleanup_fault = matches!(
+            mode,
+            TestMode::CleanupFailure | TestMode::ErrorCleanupFailure
+        );
+        let cleanup = container.finish(injected_cleanup_fault);
+        if let Err(error) = cleanup {
+            return Err(error);
+        }
+        let bytes = result?;
         let size = bytes.len();
-        container.finish()?;
         let witness = self
             .consumer
             .verify_and_consume(

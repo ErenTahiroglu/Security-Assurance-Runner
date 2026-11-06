@@ -148,6 +148,23 @@ fn isolated_inert_helper_end_to_end_and_fail_closed_cases() {
     ));
     gone(&runner);
 
+    // Independent observed exit 23 must reject a separately signed, but wrong,
+    // exit_code=1 witness. This is intentionally a FULL Docker execution test.
+    let mut wrong_exit = fixture(&runner, &owner, &observer, 10, None, None);
+    let mut wrong_value: serde_json::Value =
+        serde_json::from_slice(&wrong_exit.witness).unwrap();
+    wrong_value["exit_code"] = json!(1);
+    wrong_exit.witness = serde_json::to_vec(&wrong_value).unwrap();
+    wrong_exit.witness_sig = observer
+        .sign(&pae(WITNESS_TYPE, &wrong_exit.witness))
+        .to_bytes();
+    let wrong_exit_ctx = context(&ok, &wv, &wrong_exit.pin);
+    assert!(matches!(
+        run(&mut runner, &wrong_exit_ctx, &wrong_exit, TestMode::Normal, max),
+        Err(PipelineRefusal::WitnessExitMismatch)
+    ));
+    gone(&runner);
+
     let unexpected_digest = "f".repeat(64);
     let wrong = fixture(
         &runner,
@@ -209,6 +226,37 @@ fn isolated_inert_helper_end_to_end_and_fail_closed_cases() {
     assert!(matches!(
         run(&mut runner, &cancel_ctx, &cancel, TestMode::Cancelled, max),
         Err(PipelineRefusal::Cancelled)
+    ));
+    gone(&runner);
+
+    // Controlled failure injection deliberately suppresses the FIRST cleanup
+    // command. Coordinator must expose CleanupFailed, attempt recovery, and
+    // leave no container, including when execution itself already failed.
+    let cleanup_success = fixture(&runner, &owner, &observer, 11, None, None);
+    let cleanup_success_ctx = context(&ok, &wv, &cleanup_success.pin);
+    assert!(matches!(
+        run(
+            &mut runner,
+            &cleanup_success_ctx,
+            &cleanup_success,
+            TestMode::CleanupFailure,
+            max
+        ),
+        Err(PipelineRefusal::CleanupFailed)
+    ));
+    gone(&runner);
+
+    let cleanup_error = fixture(&runner, &owner, &observer, 12, None, None);
+    let cleanup_error_ctx = context(&ok, &wv, &cleanup_error.pin);
+    assert!(matches!(
+        run(
+            &mut runner,
+            &cleanup_error_ctx,
+            &cleanup_error,
+            TestMode::ErrorCleanupFailure,
+            max
+        ),
+        Err(PipelineRefusal::CleanupFailed)
     ));
     gone(&runner);
     println!("GOV_02_PIPELINE_01_ISOLATED_INERT_HELPER_PASS");
