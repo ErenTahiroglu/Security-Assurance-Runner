@@ -7,6 +7,9 @@ on:
       - 'scripts/gov02/pilot01/**'
       - 'src/gitleaks_adapter.rs'
       - 'tests/gitleaks_adapter.rs'
+      - 'src/execution_witness.rs'
+      - 'src/gitleaks_fixture.rs'
+      - 'tests/execution_witness.rs'
 permissions:
   contents: read
 concurrency:

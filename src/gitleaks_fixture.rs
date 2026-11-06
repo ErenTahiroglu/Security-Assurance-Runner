@@ -159,6 +159,45 @@ fn parse_native(input: &[u8]) -> Result<(CollectionKind, Vec<NativeFinding>), Fi
     Ok((collection, native))
 }
 
+/// Counts only exact, non-resolving relative source names from a test-approved inventory.
+pub(crate) fn synthetic_scope_counts(
+    input: &[u8],
+    inventory: &[String],
+) -> Result<(usize, usize), FixtureImportError> {
+    let (_, findings) = parse_native(input)?;
+    let mut matched = 0;
+    let mut outside = 0;
+    for f in findings {
+        let usable = !f.rule_id.is_empty()
+            && !f.fingerprint.is_empty()
+            && f.start_line > 0
+            && f.end_line >= f.start_line
+            && f.start_column > 0
+            && f.end_column > 0
+            && (f.end_line != f.start_line || f.end_column >= f.start_column);
+        if usable && safe_relative(&f.file) && inventory.contains(&f.file) {
+            matched += 1;
+        } else {
+            outside += 1;
+        }
+    }
+    Ok((matched, outside))
+}
+
+pub(crate) fn safe_relative(path: &str) -> bool {
+    !path.is_empty()
+        && path.len() <= 1024
+        && path.is_ascii()
+        && !path.starts_with('/')
+        && !path.contains(['\\', ':', '%'])
+        && path
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_. /".contains(&b))
+        && path
+            .split('/')
+            .all(|part| !part.is_empty() && part != "." && part != "..")
+}
+
 /// Fixture-only interpretation. Catalog values are caller-declared, never trusted policy.
 /// Output uses catalog indexes, never untrusted report strings or catalog text.
 #[derive(Debug, Serialize)]
