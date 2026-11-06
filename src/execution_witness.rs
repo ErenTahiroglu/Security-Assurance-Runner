@@ -82,6 +82,8 @@ pub enum Refusal {
     ReportMismatch,
     IncompleteExecution,
     InvalidReport,
+    Replay,
+    ReplayCapacity,
 }
 
 #[derive(Debug, Serialize)]
@@ -98,6 +100,44 @@ pub struct TestWitnessReceipt {
     pub policy_authority_verified: bool,
     pub policy_decision: Decision,
     pub adapter: AdapterReceipt,
+}
+
+/// In-memory fixture receipt consumption; no cross-process or production replay guarantee.
+#[derive(Default)]
+pub struct TestReceiptConsumer {
+    consumed: BTreeSet<(String, String, String, u32)>,
+}
+
+impl TestReceiptConsumer {
+    pub fn verify_and_consume(
+        &mut self,
+        ctx: &TestContext<'_>,
+        plan_bytes: &[u8],
+        plan_sig: &[u8],
+        witness_bytes: &[u8],
+        witness_sig: &[u8],
+        report: &[u8],
+    ) -> Result<TestWitnessReceipt, Refusal> {
+        let receipt = verify_test_execution(
+            ctx,
+            plan_bytes,
+            plan_sig,
+            witness_bytes,
+            witness_sig,
+            report,
+        )?;
+        let plan = verify_test_plan(ctx, plan_bytes, plan_sig)?;
+        let b = plan.statement.binding;
+        let identity = (b.repository_id, b.run_id, b.stage_id, b.attempt);
+        if self.consumed.contains(&identity) {
+            return Err(Refusal::Replay);
+        }
+        if self.consumed.len() >= 256 {
+            return Err(Refusal::ReplayCapacity);
+        }
+        self.consumed.insert(identity);
+        Ok(receipt)
+    }
 }
 
 fn verify(key: &VerifyingKey, typ: &str, bytes: &[u8], signature: &[u8]) -> Result<(), Refusal> {
@@ -136,6 +176,52 @@ fn valid_binding(b: &Binding) -> bool {
         && hex(&b.config_digest, 64)
 }
 
+/// An authenticated fixture statement, never an operational authorization.
+pub struct VerifiedTestPlan {
+    statement: PlanStatement,
+}
+
+/// Validate a purpose-bound plan before any test process is considered for execution.
+pub fn verify_test_plan(
+    ctx: &TestContext<'_>,
+    plan_bytes: &[u8],
+    plan_sig: &[u8],
+) -> Result<VerifiedTestPlan, Refusal> {
+    if !ctx.freshness_current || ctx.revoked {
+        return Err(Refusal::StaleOrRevoked);
+    }
+    verify(ctx.plan_key, PLAN_TYPE, plan_bytes, plan_sig)?;
+    let p: PlanStatement =
+        serde_json::from_slice(plan_bytes).map_err(|_| Refusal::InvalidStatement)?;
+    if p.version != 1 {
+        return Err(Refusal::InvalidStatement);
+    }
+    if p.purpose != "execution-plan" || p.role != "plan-approver" || p.issuer != ctx.plan_issuer {
+        return Err(Refusal::WrongAuthority);
+    }
+    if p.not_before >= p.expires || ctx.now < p.not_before || ctx.now >= p.expires {
+        return Err(Refusal::OutsideValidity);
+    }
+    if !hex(ctx.expected_plan_digest, 64) || input_digest(plan_bytes) != ctx.expected_plan_digest {
+        return Err(Refusal::WrongPlan);
+    }
+    if !valid_binding(&p.binding) {
+        return Err(Refusal::BindingMismatch);
+    }
+    if p.scope.is_empty()
+        || p.scope.len() > MAX_CHECKS
+        || p.scope.iter().any(|s| !safe_relative(s))
+        || p.scope.iter().collect::<BTreeSet<_>>().len() != p.scope.len()
+        || p.rules.is_empty()
+        || p.rules.len() > MAX_CHECKS
+        || p.rules.iter().any(|s| !token(s))
+        || p.rules.iter().collect::<BTreeSet<_>>().len() != p.rules.len()
+    {
+        return Err(Refusal::InvalidStatement);
+    }
+    Ok(VerifiedTestPlan { statement: p })
+}
+
 /// Verifies two purpose-separated signed statements against separately supplied synthetic roots.
 /// Anti-replay is limited to matching the externally pinned plan and all signed run bindings.
 pub fn verify_test_execution(
@@ -155,53 +241,28 @@ pub fn verify_test_execution(
     if report.len() > MAX_INPUT_BYTES {
         return Err(Refusal::InvalidReport);
     }
-    verify(ctx.plan_key, PLAN_TYPE, plan_bytes, plan_sig)?;
+    let p = verify_test_plan(ctx, plan_bytes, plan_sig)?.statement;
     verify(ctx.witness_key, WITNESS_TYPE, witness_bytes, witness_sig)?;
-    let p: PlanStatement =
-        serde_json::from_slice(plan_bytes).map_err(|_| Refusal::InvalidStatement)?;
     let w: WitnessStatement =
         serde_json::from_slice(witness_bytes).map_err(|_| Refusal::InvalidStatement)?;
-    if p.version != 1 || w.version != 1 {
+    if w.version != 1 {
         return Err(Refusal::InvalidStatement);
     }
-    if p.purpose != "execution-plan"
-        || p.role != "plan-approver"
-        || p.issuer != ctx.plan_issuer
-        || w.purpose != "execution-witness"
+    if w.purpose != "execution-witness"
         || w.role != "test-observer"
         || w.issuer != ctx.witness_issuer
     {
         return Err(Refusal::WrongAuthority);
     }
-    if p.not_before >= p.expires
-        || w.not_before >= w.expires
-        || ctx.now < p.not_before
-        || ctx.now >= p.expires
-        || ctx.now < w.not_before
-        || ctx.now >= w.expires
-    {
+    if w.not_before >= w.expires || ctx.now < w.not_before || ctx.now >= w.expires {
         return Err(Refusal::OutsideValidity);
     }
     let plan_digest = input_digest(plan_bytes);
-    if !hex(ctx.expected_plan_digest, 64)
-        || plan_digest != ctx.expected_plan_digest
-        || w.plan_digest != plan_digest
-    {
+    if w.plan_digest != plan_digest {
         return Err(Refusal::WrongPlan);
     }
-    if !valid_binding(&p.binding) || p.binding != w.binding {
+    if p.binding != w.binding {
         return Err(Refusal::BindingMismatch);
-    }
-    if p.scope.is_empty()
-        || p.scope.len() > MAX_CHECKS
-        || p.scope.iter().any(|s| !safe_relative(s))
-        || p.scope.iter().collect::<BTreeSet<_>>().len() != p.scope.len()
-        || p.rules.is_empty()
-        || p.rules.len() > MAX_CHECKS
-        || p.rules.iter().any(|s| !token(s))
-        || p.rules.iter().collect::<BTreeSet<_>>().len() != p.rules.len()
-    {
-        return Err(Refusal::InvalidStatement);
     }
     if w.report_size != report.len() || w.report_digest != input_digest(report) {
         return Err(Refusal::ReportMismatch);

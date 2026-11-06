@@ -3,7 +3,10 @@ use ed25519_dalek::{Signer, SigningKey};
 use security_assurance_runner::{
     contract::input_digest,
     evaluation::Decision,
-    execution_witness::{PLAN_TYPE, Refusal, TestContext, WITNESS_TYPE, verify_test_execution},
+    execution_witness::{
+        PLAN_TYPE, Refusal, TestContext, TestReceiptConsumer, WITNESS_TYPE, verify_test_execution,
+        verify_test_plan,
+    },
     trust::pae,
 };
 use serde_json::{Value, json};
@@ -208,6 +211,32 @@ fn missing_signature_wrong_root_and_unpinned_plan_refuse() {
         freshness_current: true,
         revoked: false,
     };
+    assert!(verify_test_plan(&ctx, &pb, &ps).is_ok());
+    let mut consumer = TestReceiptConsumer::default();
+    assert!(matches!(
+        consumer.verify_and_consume(&ctx, &pb, &ps, &wb, &[], &data),
+        Err(Refusal::InvalidSignature)
+    ));
+    assert!(
+        consumer
+            .verify_and_consume(&ctx, &pb, &ps, &wb, &ws, &data)
+            .is_ok()
+    );
+    assert!(matches!(
+        consumer.verify_and_consume(&ctx, &pb, &ps, &wb, &ws, &data),
+        Err(Refusal::Replay)
+    ));
+    let mut alternate = wb.clone();
+    alternate.push(b' ');
+    let alternate_sig = observer.sign(&pae(WITNESS_TYPE, &alternate)).to_bytes();
+    assert!(matches!(
+        consumer.verify_and_consume(&ctx, &pb, &ps, &alternate, &alternate_sig, &data),
+        Err(Refusal::Replay)
+    ));
+    assert!(matches!(
+        verify_test_plan(&ctx, &pb, &[]),
+        Err(Refusal::InvalidSignature)
+    ));
     assert!(matches!(
         verify_test_execution(&ctx, &pb, &[], &wb, &ws, &data),
         Err(Refusal::InvalidSignature)
@@ -219,11 +248,19 @@ fn missing_signature_wrong_root_and_unpinned_plan_refuse() {
     ));
     ctx.expected_plan_digest = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
     assert!(matches!(
+        verify_test_plan(&ctx, &pb, &ps),
+        Err(Refusal::WrongPlan)
+    ));
+    assert!(matches!(
         verify_test_execution(&ctx, &pb, &ps, &wb, &ws, &data),
         Err(Refusal::WrongPlan)
     ));
     ctx.expected_plan_digest = &pin;
     ctx.freshness_current = false;
+    assert!(matches!(
+        verify_test_plan(&ctx, &pb, &ps),
+        Err(Refusal::StaleOrRevoked)
+    ));
     assert!(matches!(
         verify_test_execution(&ctx, &pb, &ps, &wb, &ws, &data),
         Err(Refusal::StaleOrRevoked)
