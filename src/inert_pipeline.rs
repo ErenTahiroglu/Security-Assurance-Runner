@@ -474,9 +474,7 @@ impl InertCoordinator {
             TestMode::CleanupFailure | TestMode::ErrorCleanupFailure
         );
         let cleanup = container.finish(injected_cleanup_fault);
-        if let Err(error) = cleanup {
-            return Err(error);
-        }
+        cleanup?;
         let bytes = result?;
         let size = bytes.len();
         let witness = self
