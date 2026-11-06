@@ -1,3 +1,17 @@
+# GOV-02 PIPELINE-01 — integrated inert Linux execution (author handoff)
+
+**CURRENT (2026-11-07):** `GOV_02_PIPELINE_01_READY_FOR_INDEPENDENT_REDTEAM` at code SHA `2cb1ecf746d93040f4349910ba162c583bebbc0a`. The original incomplete checkpoint `c80fef0d73b76f43e81fdd98ec59f43a8a799873` has been continued, not reset. The missing Docker-isolated inert process coordinator now exists in `src/inert_pipeline.rs`; its original static C helper lives in `scripts/gov02/pipeline01/helper.c`. This is a **test helper**, never Gitleaks.
+
+**Actual exact-SHA run evidence:**
+- [Rust CI 42302288263 attempt 1](https://github.com/ErenTahiroglu/Security-Assurance-Runner/actions/runs/42302288263), source `2cb1ecf746d93040f4349910ba162c583bebbc0a`: ubuntu-24.04 x64, windows-2025 x64, macos-15 ARM64 each PASS, fmt/Clippy/test/build, **49/49 ordinary Rust tests per OS**.
+- [Linux Docker scanner-disabled preflight 42302288210 attempt 1](https://github.com/ErenTahiroglu/Security-Assurance-Runner/actions/runs/42302288210), same `2cb1ecf746d93040f4349910ba162c583bebbc0a`: **17/17 Python tests**, Docker network positive/none negative, filesystem/timeout cleanup probes, and **one explicitly invoked ignored Rust Docker integration test PASS**. The ignored Rust integration test covers actual inert-helper start/exit and fixed stdout-free native-like report, strict HostConfig, file read-only restrictions, no network, replay before reexecution, changed identity, invalid witness, failure, partial/oversize, timeout/cancel and container cleanup. It is deliberately not run in normal cross-platform Rust CI (which includes compilation on Linux only).
+
+`verify_test_plan` and `TestReceiptConsumer` remain test-root-only. The coordinator performs a separate exact signed-plan/witness precheck **before** launching its fixed inert executable, then verifies the container's inspected HostConfig, observed Docker exit, bounded artificial output and same-instance witness consumption. Fixed local compiled helper executable digest is pinned against a **synthetic signed test binding**; tool version `8.30.1` there is the fixture report compatibility label, not proof that Gitleaks v8.30.1 was executed. The helper process intentionally exits 23 to exercise existing nonzero-finding report handling; it is **not a native scanner outcome**.
+
+**Limitations:** no real Gitleaks launch, actual secret detection, independently enrolled production host/owner trust or attested process, authenticated input inventory, genuine scanner rule coverage, durable replay registry, arbitrary user command, production policy PASS or release. `InertPipelineReceipt` reports observed inert test process only; `actual_gitleaks_executed=false`, `production_process_attested=false`, `operational_pass=false`, `policy_decision=INDETERMINATE`. Exact-SHA evidence supports **author readiness for independent review**, not independent acceptance.
+
+## Historical partial checkpoint
+
 # GOV-02 PIPELINE-01 — incomplete implementation
 
 Status: BLOCKED / incomplete, not an independent review handoff. Baseline `75d9f1941ce84e99bf2c8369022e562c76fef96c`.
